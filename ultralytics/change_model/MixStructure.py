@@ -1,11 +1,11 @@
 import torch
 import torch.nn as nn
 
-
 # 论文题目：MixDehazeNet : Mix Structure Block For Image Dehazing Network
 # 论文链接：https://ieeexplore.ieee.org/document/10651326
 # 官方github：https://github.com/AmeryXiong/MixDehazeNet
 # 代码改进者：一勺汤
+
 
 class MixStructureBlock(nn.Module):
     def __init__(self, dim):
@@ -15,25 +15,21 @@ class MixStructureBlock(nn.Module):
         self.norm2 = nn.BatchNorm2d(dim)
 
         self.conv1 = nn.Conv2d(dim, dim, kernel_size=1)
-        self.conv2 = nn.Conv2d(dim, dim, kernel_size=5, padding=2, padding_mode='reflect')
+        self.conv2 = nn.Conv2d(dim, dim, kernel_size=5, padding=2, padding_mode="reflect")
         # self.conv3_19 = nn.Conv2d(dim, dim, kernel_size=7, padding=9, groups=dim, dilation=3, padding_mode='reflect')
         # self.conv3_13 = nn.Conv2d(dim, dim, kernel_size=5, padding=6, groups=dim, dilation=3, padding_mode='reflect')
         # self.conv3_7 = nn.Conv2d(dim, dim, kernel_size=3, padding=3, groups=dim, dilation=3, padding_mode='reflect')
 
-        self.conv3_19 = nn.Conv2d(dim, dim, kernel_size=7, padding=3, groups=dim, padding_mode='reflect')
-        self.conv3_13 = nn.Conv2d(dim, dim, kernel_size=5, padding=6, groups=dim, dilation=3, padding_mode='reflect')
-        self.conv3_7 = nn.Conv2d(dim, dim, kernel_size=3, padding=3, groups=dim, dilation=3, padding_mode='reflect')
+        self.conv3_19 = nn.Conv2d(dim, dim, kernel_size=7, padding=3, groups=dim, padding_mode="reflect")
+        self.conv3_13 = nn.Conv2d(dim, dim, kernel_size=5, padding=6, groups=dim, dilation=3, padding_mode="reflect")
+        self.conv3_7 = nn.Conv2d(dim, dim, kernel_size=3, padding=3, groups=dim, dilation=3, padding_mode="reflect")
 
         # Simple Pixel Attention
         self.Wv = nn.Sequential(
             nn.Conv2d(dim, dim, 1),
-            nn.Conv2d(dim, dim, kernel_size=3, padding=3 // 2, groups=dim, padding_mode='reflect')
+            nn.Conv2d(dim, dim, kernel_size=3, padding=3 // 2, groups=dim, padding_mode="reflect"),
         )
-        self.Wg = nn.Sequential(
-            nn.AdaptiveAvgPool2d(1),
-            nn.Conv2d(dim, dim, 1),
-            nn.Sigmoid()
-        )
+        self.Wg = nn.Sequential(nn.AdaptiveAvgPool2d(1), nn.Conv2d(dim, dim, 1), nn.Sigmoid())
 
         # Channel Attention
         self.ca = nn.Sequential(
@@ -42,7 +38,7 @@ class MixStructureBlock(nn.Module):
             nn.GELU(),
             # nn.ReLU(True),
             nn.Conv2d(dim, dim, 1, padding=0, bias=True),
-            nn.Sigmoid()
+            nn.Sigmoid(),
         )
 
         # Pixel Attention
@@ -51,20 +47,20 @@ class MixStructureBlock(nn.Module):
             nn.GELU(),
             # nn.ReLU(True),
             nn.Conv2d(dim // 8, 1, 1, padding=0, bias=True),
-            nn.Sigmoid()
+            nn.Sigmoid(),
         )
 
         self.mlp = nn.Sequential(
             nn.Conv2d(dim * 3, dim * 4, 1),
             nn.GELU(),
             # nn.ReLU(True),
-            nn.Conv2d(dim * 4, dim, 1)
+            nn.Conv2d(dim * 4, dim, 1),
         )
         self.mlp2 = nn.Sequential(
             nn.Conv2d(dim * 3, dim * 4, 1),
             nn.GELU(),
             # nn.ReLU(True),
-            nn.Conv2d(dim * 4, dim, 1)
+            nn.Conv2d(dim * 4, dim, 1),
         )
 
     def forward(self, x):
@@ -113,6 +109,7 @@ class Conv(nn.Module):
         """Perform transposed convolution of 2D data."""
         return self.act(self.conv(x))
 
+
 class Bottleneck(nn.Module):
     """Standard bottleneck."""
 
@@ -127,6 +124,7 @@ class Bottleneck(nn.Module):
     def forward(self, x):
         """Applies the YOLO FPN to input data."""
         return x + self.cv2(self.cv1(x)) if self.add else self.cv2(self.cv1(x))
+
 
 class C2f(nn.Module):
     """Faster Implementation of CSP Bottleneck with 2 convolutions."""
@@ -152,6 +150,7 @@ class C2f(nn.Module):
         y.extend(m(y[-1]) for m in self.m)
         return self.cv2(torch.cat(y, 1))
 
+
 class C3(nn.Module):
     """CSP Bottleneck with 3 convolutions."""
 
@@ -168,6 +167,7 @@ class C3(nn.Module):
         """Forward pass through the CSP bottleneck with 2 convolutions."""
         return self.cv3(torch.cat((self.m(self.cv1(x)), self.cv2(x)), 1))
 
+
 class Bottleneck_MixStructureBlock(nn.Module):
     """Standard bottleneck."""
 
@@ -183,6 +183,7 @@ class Bottleneck_MixStructureBlock(nn.Module):
         """Applies the YOLO FPN to input data."""
         return x + self.cv2(self.cv1(x)) if self.add else self.cv2(self.cv1(x))
 
+
 class C3k(C3):
     """C3k is a CSP bottleneck module with customizable kernel sizes for feature extraction in neural networks."""
 
@@ -192,6 +193,7 @@ class C3k(C3):
         c_ = int(c2 * e)  # hidden channels
         # self.m = nn.Sequential(*(RepBottleneck(c_, c_, shortcut, g, k=(k, k), e=1.0) for _ in range(n)))
         self.m = nn.Sequential(*(Bottleneck_MixStructureBlock(c_, c_, shortcut, g, k=(k, k), e=1.0) for _ in range(n)))
+
 
 # 在c3k=True时，使用Bottleneck_LLSKM特征融合，为false的时候我们使用普通的Bottleneck提取特征
 class C3k2_MixStructureBlock(C2f):
@@ -204,9 +206,6 @@ class C3k2_MixStructureBlock(C2f):
             C3k(self.c, self.c, 2, shortcut, g) if c3k else Bottleneck(self.c, self.c, shortcut, g) for _ in range(n)
         )
 
-
-
-import torch
 
 def main():
     # 设置随机种子以确保可重复性
@@ -234,15 +233,6 @@ def main():
 
     print("MixStructureBlock forward pass successful!")
 
+
 if __name__ == "__main__":
     main()
-
-
-
-
-
-
-
-
-
-

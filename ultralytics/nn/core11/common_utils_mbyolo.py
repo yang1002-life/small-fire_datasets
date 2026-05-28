@@ -1,19 +1,11 @@
 import torch
-import math
-from functools import partial
-from typing import Callable, Any
-
 import torch.nn as nn
-from einops import rearrange, repeat
+from einops import rearrange
 from timm.models.layers import DropPath
 
 DropPath.__repr__ = lambda self: f"timm.DropPath({self.drop_prob})"
 try:
     import selective_scan_cuda_core
-    import selective_scan_cuda_oflex
-    import selective_scan_cuda_ndstate
-    import selective_scan_cuda_nrow
-    import selective_scan_cuda
 except:
     pass
 
@@ -21,7 +13,7 @@ except:
 # 参考这个教程安装 https://github.com/AlwaysFHao/Mamba-Install
 
 
-'''
+"""
 需要在linux下编译
 或者
 # pip install required packages
@@ -31,13 +23,13 @@ pip3 install torch===2.3.0 torchvision torchaudio
 pip install seaborn thop timm einops
 cd selective_scan && pip install . && cd ..
 pip install -v -e .
-'''
+"""
 
 
 try:
     "sscore acts the same as mamba_ssm"
     import selective_scan_cuda_core
-except Exception as e:
+except Exception:
     pass
     # print(e, flush=True)
     # "you should install mamba_ssm to use this"
@@ -47,15 +39,14 @@ except Exception as e:
 
 
 class LayerNorm2d(nn.Module):
-
     def __init__(self, normalized_shape, eps=1e-6, elementwise_affine=True):
         super().__init__()
         self.norm = nn.LayerNorm(normalized_shape, eps, elementwise_affine)
 
     def forward(self, x):
-        x = rearrange(x, 'b c h w -> b h w c').contiguous()
+        x = rearrange(x, "b c h w -> b h w c").contiguous()
         x = self.norm(x)
-        x = rearrange(x, 'b h w c -> b c h w').contiguous()
+        x = rearrange(x, "b h w c -> b c h w").contiguous()
         return x
 
 
@@ -83,7 +74,7 @@ class CrossScan(torch.autograd.Function):
     @staticmethod
     def backward(ctx, ys: torch.Tensor):
         # out: (b, k, d, l)
-        B, C, H, W = ctx.shape
+        B, _C, H, W = ctx.shape
         L = H * W
         ys = ys[:, 0:2] + ys[:, 2:4].flip(dims=[-1]).view(B, 2, -1, L)
         y = ys[:, 0] + ys[:, 1].view(B, -1, W, H).transpose(dim0=2, dim1=3).contiguous().view(B, -1, L)
@@ -119,8 +110,9 @@ class SelectiveScanCore(torch.autograd.Function):
     # comment all checks if inside cross_selective_scan
     @staticmethod
     @torch.cuda.amp.custom_fwd
-    def forward(ctx, u, delta, A, B, C, D=None, delta_bias=None, delta_softplus=False, nrows=1, backnrows=1,
-                oflex=True):
+    def forward(
+        ctx, u, delta, A, B, C, D=None, delta_bias=None, delta_softplus=False, nrows=1, backnrows=1, oflex=True
+    ):
         # all in float
         if u.stride(-1) != 1:
             u = u.contiguous()
@@ -140,46 +132,46 @@ class SelectiveScanCore(torch.autograd.Function):
             ctx.squeeze_C = True
         ctx.delta_softplus = delta_softplus
         ctx.backnrows = backnrows
-        out, x, *rest = selective_scan_cuda_core.fwd(u, delta, A, B, C, D, delta_bias, delta_softplus, 1)
+        out, x, *_rest = selective_scan_cuda_core.fwd(u, delta, A, B, C, D, delta_bias, delta_softplus, 1)
         ctx.save_for_backward(u, delta, A, B, C, D, delta_bias, x)
         return out
 
     @staticmethod
     @torch.cuda.amp.custom_bwd
-    def backward(ctx, dout, *args):
+    def backward(ctx, doubt, *args):
         u, delta, A, B, C, D, delta_bias, x = ctx.saved_tensors
-        if dout.stride(-1) != 1:
-            dout = dout.contiguous()
-        du, ddelta, dA, dB, dC, dD, ddelta_bias, *rest = selective_scan_cuda_core.bwd(
-            u, delta, A, B, C, D, delta_bias, dout, x, ctx.delta_softplus, 1
+        if doubt.stride(-1) != 1:
+            doubt = doubt.contiguous()
+        du, ddelta, dA, dB, dC, dD, ddelta_bias, *_rest = selective_scan_cuda_core.bwd(
+            u, delta, A, B, C, D, delta_bias, doubt, x, ctx.delta_softplus, 1
         )
         return (du, ddelta, dA, dB, dC, dD, ddelta_bias, None, None, None, None)
 
 
 def cross_selective_scan(
-        x: torch.Tensor = None,
-        x_proj_weight: torch.Tensor = None,
-        x_proj_bias: torch.Tensor = None,
-        dt_projs_weight: torch.Tensor = None,
-        dt_projs_bias: torch.Tensor = None,
-        A_logs: torch.Tensor = None,
-        Ds: torch.Tensor = None,
-        out_norm: torch.nn.Module = None,
-        out_norm_shape="v0",
-        nrows=-1,  # for SelectiveScanNRow
-        backnrows=-1,  # for SelectiveScanNRow
-        delta_softplus=True,
-        to_dtype=True,
-        force_fp32=False,  # False if ssoflex
-        ssoflex=True,
-        SelectiveScan=None,
-        scan_mode_type='default'
+    x: torch.Tensor = None,
+    x_proj_weight: torch.Tensor = None,
+    x_proj_bias: torch.Tensor = None,
+    dt_projs_weight: torch.Tensor = None,
+    dt_projs_bias: torch.Tensor = None,
+    A_logs: torch.Tensor = None,
+    Ds: torch.Tensor = None,
+    out_norm: torch.nn.Module = None,
+    out_norm_shape="v0",
+    nrows=-1,  # for SelectiveScanNRow
+    backnrows=-1,  # for SelectiveScanNRow
+    delta_softplus=True,
+    to_dtype=True,
+    force_fp32=False,  # False if ssoflex
+    ssoflex=True,
+    SelectiveScan=None,
+    scan_mode_type="default",
 ):
     # out_norm: whatever fits (B, L, C); LayerNorm; Sigmoid; Softmax(dim=1);...
 
     B, D, H, W = x.shape
     D, N = A_logs.shape
-    K, D, R = dt_projs_weight.shape
+    K, _D, R = dt_projs_weight.shape
     L = H * W
 
     def selective_scan(u, delta, A, B, C, D=None, delta_bias=None, delta_softplus=True):
@@ -207,9 +199,7 @@ def cross_selective_scan(
         Bs = Bs.to(torch.float)
         Cs = Cs.to(torch.float)
 
-    ys: torch.Tensor = selective_scan(
-        xs, dts, As, Bs, Cs, Ds, delta_bias, delta_softplus
-    ).view(B, K, -1, H, W)
+    ys: torch.Tensor = selective_scan(xs, dts, As, Bs, Cs, Ds, delta_bias, delta_softplus).view(B, K, -1, H, W)
 
     y: torch.Tensor = CrossMerge.apply(ys)
 
@@ -219,4 +209,4 @@ def cross_selective_scan(
         y = y.transpose(dim0=1, dim1=2).contiguous()  # (B, L, C)
         y = out_norm(y).view(B, H, W, -1)
 
-    return (y.to(x.dtype) if to_dtype else y)
+    return y.to(x.dtype) if to_dtype else y
