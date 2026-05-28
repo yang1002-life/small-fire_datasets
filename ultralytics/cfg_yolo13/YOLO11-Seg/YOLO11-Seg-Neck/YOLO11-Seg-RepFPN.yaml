@@ -11,7 +11,6 @@ scales: # model compound scaling constants, i.e. 'model=yolo11n-seg.yaml' will c
   l: [1.00, 1.00, 512] # summary: 667 layers, 27678368 parameters, 27678352 gradients, 143.0 GFLOPs
   x: [1.00, 1.50, 512] # summary: 667 layers, 62142656 parameters, 62142640 gradients, 320.2 GFLOPs
 
-
 # YOLO11n backbone
 backbone:
   # [from, repeats, module, args]
@@ -36,14 +35,14 @@ head:
   - [-1, 1, SimConv, [128, 1, 1]]
   - [-1, 1, Transpose, [128]]
   - [[-1, 4], 1, Concat, [1]]
-  - [-1, 12, RepBlock, [128]]   #out
+  - [-1, 12, RepBlock, [128]] #out
 
   - [-1, 1, SimConv, [128, 3, 2]]
-  - [[-1, 14], 1, Concat, [1]]  # cat head P4
-  - [-1, 12, RepBlock, [256]]  # 20 (P4/16-medium)
+  - [[-1, 14], 1, Concat, [1]] # cat head P4
+  - [-1, 12, RepBlock, [256]] # 20 (P4/16-medium)
 
   - [-1, 1, SimConv, [256, 3, 2]]
-  - [[-1, 10], 1, Concat, [1]]  # cat head P5
+  - [[-1, 10], 1, Concat, [1]] # cat head P5
   - [-1, 12, RepBlock, [512]]
 
   - [[17, 20, 23], 1, Segment, [nc, 32, 256]] # Detect(P3, P4, P5)

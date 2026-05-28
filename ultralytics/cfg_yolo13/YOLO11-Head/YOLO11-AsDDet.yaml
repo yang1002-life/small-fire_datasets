@@ -47,5 +47,5 @@ head:
   - [[16, 19, 22], 1, Detect, [nc]] # Detect(P3, P4, P5)
 
 # 检测头部分
-Head: 
+Head:
   - [[23], 1, AsDDet, [nc]]

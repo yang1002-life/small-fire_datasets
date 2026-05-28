@@ -1,19 +1,15 @@
-import netron
-import torch
-from PIL import Image
-import onnx
-import sys
 import os
-import numpy as np
-from pathlib import Path
-from typing import Union
+import sys
+
 import cv2
+import onnx
+
 from ultralytics import YOLO
 
 
 def train():
     # 加载模型配置文件，这里使用v8的m模型结构
-    model = YOLO('yolov8m.yaml')
+    model = YOLO("yolov8m.yaml")
 
     # 做预训练
     # model = YOLO('yolov8x.pt')
@@ -26,9 +22,9 @@ def train():
 def onnx():
     # 使用onnx导出文件
     # model = YOLO('yolov8n.pt')  # load an official model
-    model = YOLO('YOLOv8/runs/detect/train1/weights/best.pt')  # load a custom trained
+    model = YOLO("YOLOv8/runs/detect/train1/weights/best.pt")  # load a custom trained
     # Export the model
-    model.export(format='onnx')
+    model.export(format="onnx")
 
 
 def test_img():
@@ -40,7 +36,7 @@ def test_img():
     ann = res[0].plot()
     while True:
         cv2.imshow("yolo", ann)
-        if cv2.waitKey(1) & 0xFF == ord('q'):
+        if cv2.waitKey(1) & 0xFF == ord("q"):
             break
     # 设置保存图片的路径
     cur_path = sys.path[0]
@@ -58,7 +54,7 @@ def predict():
 
     # Load a model
     # model = YOLO('yolov8n.pt')  # 加载官方的模型权重作评估
-    model = YOLO('YOLOv8/runs/detect/your/weights/best.pt')  # 加载自定义的模型权重作评估
+    model = YOLO("YOLOv8/runs/detect/your/weights/best.pt")  # 加载自定义的模型权重作评估
 
     # 评估
     metrics = model.val()  # 不需要传参，这里定义的模型会自动在训练的数据集上作评估
@@ -76,9 +72,12 @@ def test_video():
     # 调用设备自身摄像头
     # cap = cv2.VideoCapture(0) # -1
     # 设置视频尺寸
-    size = (int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)),)
+    size = (
+        int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)),
+        int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)),
+    )
     # 第一个参数是将检测视频存储的路径
-    out = cv2.VideoWriter('save.mp4', cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'), 40, size)
+    out = cv2.VideoWriter("save.mp4", cv2.VideoWriter_fourcc("M", "J", "P", "G"), 40, size)
     while cap.isOpened():
         ret, frame = cap.read()
         if ret:
@@ -86,19 +85,22 @@ def test_video():
             ann = res[0].plot()
             cv2.imshow("yolo", ann)
             out.write(ann)
-            if cv2.waitKey(1) & 0xFF == ord('q'):
+            if cv2.waitKey(1) & 0xFF == ord("q"):
                 break
     cv2.destroyAllWindows()
     cap.release()
 
 
-def tracker(): #目标跟踪
+def tracker():  # 目标跟踪
     pa = "/home/you/Downloads/l.mp4"
     cap = cv2.VideoCapture(pa)
-    size = (int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)),)
+    size = (
+        int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)),
+        int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)),
+    )
     model = YOLO("YOLOv8/runs/detect/train1/weights/best.pt")
     flag = 0
-    out = cv2.VideoWriter('save.mp4', cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'), 40, size)
+    out = cv2.VideoWriter("save.mp4", cv2.VideoWriter_fourcc("M", "J", "P", "G"), 40, size)
     while True:
         if flag < 1:
             flag += 1

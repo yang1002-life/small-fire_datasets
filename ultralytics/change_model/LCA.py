@@ -238,17 +238,17 @@
 #     main()
 import torch
 import torch.nn as nn
-from einops import rearrange
 import torch.nn.functional as F
+from einops import rearrange
 
 # 论文题目： You Only Need One Color Space: An Efficient Network for Low-light Image Enhancement
 # 代码改进者：一勺汤
 
+
 class LayerNorm(nn.Module):
-    r""" LayerNorm that supports two data formats: channels_last (default) or channels_first.
-    The ordering of the dimensions in the inputs. channels_last corresponds to inputs with
-    shape (batch_size, height, width, channels) while channels_first corresponds to inputs
-    with shape (batch_size, channels, height, width).
+    r"""LayerNorm that supports two data formats: channels_last (default) or channels_first. The ordering of the
+    dimensions in the inputs. channels_last corresponds to inputs with shape (batch_size, height, width, channels)
+    while channels_first corresponds to inputs with shape (batch_size, channels, height, width).
     """
 
     def __init__(self, normalized_shape, eps=1e-6, data_format="channels_first"):
@@ -288,7 +288,7 @@ class LayerNorm(nn.Module):
 # Cross Attention Block
 class CAB(nn.Module):
     def __init__(self, dim, num_heads, bias):
-        super(CAB, self).__init__()
+        super().__init__()
         # 注意力头的数量
         self.num_heads = num_heads
         # 可学习的温度参数，用于调整注意力分数
@@ -306,7 +306,7 @@ class CAB(nn.Module):
         self.project_out = nn.Conv2d(dim, dim, kernel_size=1, bias=bias)
 
     def forward(self, x, y):
-        b, c, h, w = x.shape
+        _b, _c, h, w = x.shape
 
         # 生成查询
         q = self.q_dwconv(self.q(x))
@@ -316,11 +316,11 @@ class CAB(nn.Module):
         k, v = kv.chunk(2, dim=1)
 
         # 调整查询的形状，以便多头注意力计算
-        q = rearrange(q, 'b (head c) h w -> b head c (h w)', head=self.num_heads)
+        q = rearrange(q, "b (head c) h w -> b head c (h w)", head=self.num_heads)
         # 调整键的形状，以便多头注意力计算
-        k = rearrange(k, 'b (head c) h w -> b head c (h w)', head=self.num_heads)
+        k = rearrange(k, "b (head c) h w -> b head c (h w)", head=self.num_heads)
         # 调整值的形状，以便多头注意力计算
-        v = rearrange(v, 'b (head c) h w -> b head c (h w)', head=self.num_heads)
+        v = rearrange(v, "b (head c) h w -> b head c (h w)", head=self.num_heads)
 
         # 对查询进行归一化
         q = torch.nn.functional.normalize(q, dim=-1)
@@ -333,10 +333,10 @@ class CAB(nn.Module):
         attn = nn.functional.softmax(attn, dim=-1)
 
         # 计算注意力加权的值
-        out = (attn @ v)
+        out = attn @ v
 
         # 恢复输出的形状
-        out = rearrange(out, 'b head c (h w) -> b (head c) h w', head=self.num_heads, h=h, w=w)
+        out = rearrange(out, "b head c (h w) -> b (head c) h w", head=self.num_heads, h=h, w=w)
 
         # 输出投影
         out = self.project_out(out)
@@ -346,7 +346,7 @@ class CAB(nn.Module):
 # Intensity Enhancement Layer
 class IEL(nn.Module):
     def __init__(self, dim, ffn_expansion_factor=2.66, bias=False):
-        super(IEL, self).__init__()
+        super().__init__()
 
         # 隐藏层的特征数量，根据扩展因子计算
         hidden_features = int(dim * ffn_expansion_factor)
@@ -355,14 +355,23 @@ class IEL(nn.Module):
         self.project_in = nn.Conv2d(dim, hidden_features * 2, kernel_size=1, bias=bias)
 
         # 对投影后的特征进行深度可分离卷积
-        self.dwconv = nn.Conv2d(hidden_features * 2, hidden_features * 2, kernel_size=3, stride=1, padding=1,
-                                groups=hidden_features * 2, bias=bias)
+        self.dwconv = nn.Conv2d(
+            hidden_features * 2,
+            hidden_features * 2,
+            kernel_size=3,
+            stride=1,
+            padding=1,
+            groups=hidden_features * 2,
+            bias=bias,
+        )
         # 第一个分支的深度可分离卷积
-        self.dwconv1 = nn.Conv2d(hidden_features, hidden_features, kernel_size=3, stride=1, padding=1,
-                                 groups=hidden_features, bias=bias)
+        self.dwconv1 = nn.Conv2d(
+            hidden_features, hidden_features, kernel_size=3, stride=1, padding=1, groups=hidden_features, bias=bias
+        )
         # 第二个分支的深度可分离卷积
-        self.dwconv2 = nn.Conv2d(hidden_features, hidden_features, kernel_size=3, stride=1, padding=1,
-                                 groups=hidden_features, bias=bias)
+        self.dwconv2 = nn.Conv2d(
+            hidden_features, hidden_features, kernel_size=3, stride=1, padding=1, groups=hidden_features, bias=bias
+        )
 
         # 输出投影层，将特征映射回原始维度
         self.project_out = nn.Conv2d(hidden_features, dim, kernel_size=1, bias=bias)
@@ -423,10 +432,9 @@ class Conv(nn.Module):
         return self.act(self.conv(x))
 
 
-
 class LCA(nn.Module):
-    def __init__(self, dim, out ,num_heads, bias=False):
-        super(LCA, self).__init__()
+    def __init__(self, dim, out, num_heads, bias=False):
+        super().__init__()
         # 层归一化
         self.norm = LayerNorm(dim)
         # 强度增强层
