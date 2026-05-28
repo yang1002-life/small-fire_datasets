@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 
+
 def autopad(k, p=None, d=1):  # kernel, padding, dilation
     # Pad to 'same' shape outputs
     if d > 1:
@@ -26,13 +27,15 @@ class Conv(nn.Module):
     def forward_fuse(self, x):
         return self.act(self.conv(x))
 
+
 class SP(nn.Module):
     def __init__(self, k=3, s=1):
-        super(SP, self).__init__()
+        super().__init__()
         self.m = nn.MaxPool2d(kernel_size=k, stride=s, padding=k // 2)
 
     def forward(self, x):
         return self.m(x)
+
 
 class SPPELAN(nn.Module):
     # spp-elan
@@ -43,7 +46,7 @@ class SPPELAN(nn.Module):
         self.cv2 = SP(5)
         self.cv3 = SP(5)
         self.cv4 = SP(5)
-        self.cv5 = Conv(4*c3, c2, 1, 1)
+        self.cv5 = Conv(4 * c3, c2, 1, 1)
 
     def forward(self, x):
         y = [self.cv1(x)]

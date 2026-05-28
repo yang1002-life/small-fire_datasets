@@ -1,9 +1,10 @@
 import torch
 from torch import nn
 
+
 class EMA(nn.Module):
     def __init__(self, channels, c2=None, factor=32):
-        super(EMA, self).__init__()
+        super().__init__()
         self.groups = factor
         assert channels // self.groups > 0
         self.softmax = nn.Softmax(-1)
@@ -29,13 +30,13 @@ class EMA(nn.Module):
         x22 = x1.reshape(b * self.groups, c // self.groups, -1)  # b*g, c//g, hw
         weights = (torch.matmul(x11, x12) + torch.matmul(x21, x22)).reshape(b * self.groups, 1, h, w)
         return (group_x * weights.sigmoid()).reshape(b, c, h, w)
-    
 
-if __name__ == '__main__':
-    input=torch.randn(3,256,64,64)
+
+if __name__ == "__main__":
+    input = torch.randn(3, 256, 64, 64)
     model1 = EMA(256, 256)
 
-    output1=model1(input)
+    output1 = model1(input)
 
     # print(model)
     print(output1.shape)
