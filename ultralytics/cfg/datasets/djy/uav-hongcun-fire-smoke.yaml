@@ -21,5 +21,3 @@ test: # test images (optional)
 names:
   0: fire
   1: smoke
-
-

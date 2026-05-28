@@ -12,7 +12,7 @@ scales: # model compound scaling constants, i.e. 'model=yolo11n-pose.yaml' will 
   l: [1.00, 1.00, 512] # summary: 656 layers, 26230745 parameters, 26230729 gradients, 91.4 GFLOPs
   x: [1.00, 1.50, 512] # summary: 656 layers, 58889881 parameters, 58889865 gradients, 204.3 GFLOPs
 
-loss: 'Inner-IoU'
+loss: "Inner-IoU"
 
 # YOLO11n backbone
 backbone:

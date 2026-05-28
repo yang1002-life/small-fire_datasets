@@ -1,12 +1,13 @@
 import torch
 import torch.nn as nn
-import numpy as np
 import torch.nn.functional as F
+
 # import warnings
 
 
 class SimConv(nn.Module):
-    '''Normal Conv with ReLU activation'''
+    """Normal Conv with ReLU activation."""
+
     def __init__(self, in_channels, out_channels, kernel_size=1, stride=1, groups=1, bias=False):
         super().__init__()
         padding = kernel_size // 2
@@ -28,8 +29,10 @@ class SimConv(nn.Module):
     def forward_fuse(self, x):
         return self.act(self.conv(x))
 
+
 class SimSPPF(nn.Module):
-    '''Simplified SPPF with ReLU activation'''
+    """Simplified SPPF with ReLU activation."""
+
     def __init__(self, in_channels, out_channels, kernel_size=5):
         super().__init__()
         c_ = in_channels // 2  # hidden channels
@@ -42,7 +45,7 @@ class SimSPPF(nn.Module):
         y1 = self.m(x)
         y2 = self.m(y1)
         return self.cv2(torch.cat([x, y1, y2, self.m(y2)], 1))
-    
+
 
 class BiFusion(nn.Module):
     def __init__(self, in_channel_list, out_channels):
@@ -51,13 +54,13 @@ class BiFusion(nn.Module):
         self.cv1 = SimConv(in_channel_list[1], out_channels, 1, 1)
         self.cv_fuse = SimConv(out_channels * 3, out_channels, 1, 1)
         self.downsample = nn.functional.adaptive_avg_pool2d
-    
+
     def forward(self, x):
-        N, C, H, W = x[1].shape
+        _N, _C, H, W = x[1].shape
         output_size = (H, W)
-        
+
         x0 = self.downsample(x[0], output_size)
         x0 = self.cv1_(x0)
         x1 = self.cv1(x[1])
-        x2 = F.interpolate(x[2], size=(H, W), mode='bilinear', align_corners=False)
+        x2 = F.interpolate(x[2], size=(H, W), mode="bilinear", align_corners=False)
         return self.cv_fuse(torch.cat((x0, x1, x2), dim=1))

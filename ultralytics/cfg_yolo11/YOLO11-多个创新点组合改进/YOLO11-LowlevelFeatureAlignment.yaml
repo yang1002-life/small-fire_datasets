@@ -12,7 +12,7 @@ scales: # model compound scaling constants, i.e. 'model=yolo11n.yaml' will call 
   x: [1.00, 1.50, 512] # summary: 631 layers, 56966176 parameters, 56966160 gradients, 196.0 GFLOPs
 
   # 改进后的参数量：
-  
+
 backbone:
   # [from, repeats, module, args]
   - [-1, 1, Conv, [64, 3, 2]] # 0-P1/2
@@ -27,25 +27,25 @@ backbone:
   - [-1, 1, SPPF, [1024, 5]] # 9
 
 head:
-  - [[2, 4, 6, 9], 1, low_FAM, []] 
-  - [-1, 1, low_IFM, []] 
+  - [[2, 4, 6, 9], 1, low_FAM, []]
+  - [-1, 1, low_IFM, []]
 
-  - [-3, 1, Conv, [512, 1, 1]] 
-  - [[4, 6, -1], 1, LAF_px, [512]] 
-  - [[-1, -3], 1, InjectionMultiSum_Auto_pool1, [512]] 
+  - [-3, 1, Conv, [512, 1, 1]]
+  - [[4, 6, -1], 1, LAF_px, [512]]
+  - [[-1, -3], 1, InjectionMultiSum_Auto_pool1, [512]]
   - [-1, 3, C2f, [512]]
 
-  - [6, 1, Conv, [256, 1, 1]] 
-  - [[2, 4, -1], 1, LAF_px, [256]] 
+  - [6, 1, Conv, [256, 1, 1]]
+  - [[2, 4, -1], 1, LAF_px, [256]]
   - [[-1, -7], 1, InjectionMultiSum_Auto_pool2, [256]]
   - [-1, 3, RepBlock, [256]]
 
   - [-1, 1, Conv, [256, 3, 2]]
-  - [[-1, 15], 1, Concat, [1]]  # cat head P4
-  - [-1, 3, C2f, [512]]  # (P4/16-medium)
+  - [[-1, 15], 1, Concat, [1]] # cat head P4
+  - [-1, 3, C2f, [512]] # (P4/16-medium)
 
   - [-1, 1, Conv, [512, 3, 2]]
-  - [[-1, 9], 1, Concat, [1]]  # cat head P5
-  - [-1, 3, C2f, [1024]]  # (P5/32-large)
+  - [[-1, 9], 1, Concat, [1]] # cat head P5
+  - [-1, 3, C2f, [1024]] # (P5/32-large)
 
   - [[19, 22, 25], 1, Detect, [nc]]
