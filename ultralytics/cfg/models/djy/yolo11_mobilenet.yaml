@@ -14,9 +14,9 @@ scales: # model compound scaling constants, i.e. 'model=yolo11n.yaml' will call 
 # YOLO11n backbone
 backbone:
   # [from, repeats, module, args]
-  - [-1, 1, MobileNetV4ConvMedium, []]  # 0-P1/2   可以替换为 'MobileNetV4ConvSmall', 'MobileNetV4ConvMedium', 'MobileNetV4ConvLarge'中任意一个
-  - [-1, 1, SPPF, [1024, 5]]  # 5
- #  - [-1, 2, C2PSA, [1024]] # 10
+  - [-1, 1, MobileNetV4ConvMedium, []] # 0-P1/2   可以替换为 'MobileNetV4ConvSmall', 'MobileNetV4ConvMedium', 'MobileNetV4ConvLarge'中任意一个
+  - [-1, 1, SPPF, [1024, 5]] # 5
+  #  - [-1, 2, C2PSA, [1024]] # 10
 
 # YOLO11n head
 head:

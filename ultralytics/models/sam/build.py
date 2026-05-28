@@ -13,7 +13,14 @@ import torch
 from ultralytics.utils.downloads import attempt_download_asset
 
 from .modules.decoders import MaskDecoder
-from .modules.encoders import FpnNeck, Hiera, ImageEncoder, ImageEncoderViT, MemoryEncoder, PromptEncoder
+from .modules.encoders import (
+    FpnNeck,
+    Hiera,
+    ImageEncoder,
+    ImageEncoderViT,
+    MemoryEncoder,
+    PromptEncoder,
+)
 from .modules.memory_attention import MemoryAttention, MemoryAttentionLayer
 from .modules.sam import SAM2Model, SAMModel
 from .modules.tiny_encoder import TinyViT
@@ -126,8 +133,7 @@ def _build_sam(
     checkpoint=None,
     mobile_sam=False,
 ):
-    """
-    Build a Segment Anything Model (SAM) with specified encoder parameters.
+    """Build a Segment Anything Model (SAM) with specified encoder parameters.
 
     Args:
         encoder_embed_dim (int | List[int]): Embedding dimension for the encoder.
@@ -223,8 +229,7 @@ def _build_sam2(
     encoder_window_spec=[8, 4, 16, 8],
     checkpoint=None,
 ):
-    """
-    Build and return a Segment Anything Model 2 (SAM2) with specified architecture parameters.
+    """Build and return a Segment Anything Model 2 (SAM2) with specified architecture parameters.
 
     Args:
         encoder_embed_dim (int, optional): Embedding dimension for the encoder.
@@ -325,8 +330,7 @@ sam_model_map = {
 
 
 def build_sam(ckpt="sam_b.pt"):
-    """
-    Build and return a Segment Anything Model (SAM) based on the provided checkpoint.
+    """Build and return a Segment Anything Model (SAM) based on the provided checkpoint.
 
     Args:
         ckpt (str | Path, optional): Path to the checkpoint file or name of a pre-defined SAM model.

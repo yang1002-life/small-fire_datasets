@@ -1,4 +1,5 @@
 import math
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -10,8 +11,7 @@ import torch.nn.functional as F
 
 
 def get_freq_indices(method):
-    """
-    根据方法名称获取频率索引。
+    """根据方法名称获取频率索引。.
 
     参数:
     - method: str, 指定频率选择方法，例如 'top1', 'top2', 'low4', 'bot8' 等。
@@ -20,29 +20,238 @@ def get_freq_indices(method):
     - mapper_x: list, 频率索引的 x 坐标。
     - mapper_y: list, 频率索引的 y 坐标。
     """
-    assert method in ['top1', 'top2', 'top4', 'top8', 'top16', 'top32',
-                      'bot1', 'bot2', 'bot4', 'bot8', 'bot16', 'bot32',
-                      'low1', 'low2', 'low4', 'low8', 'low16', 'low32']
+    assert method in [
+        "top1",
+        "top2",
+        "top4",
+        "top8",
+        "top16",
+        "top32",
+        "bot1",
+        "bot2",
+        "bot4",
+        "bot8",
+        "bot16",
+        "bot32",
+        "low1",
+        "low2",
+        "low4",
+        "low8",
+        "low16",
+        "low32",
+    ]
     num_freq = int(method[3:])  # 提取方法名称中的频率数量
-    if 'top' in method:
-        all_top_indices_x = [0, 0, 6, 0, 0, 1, 1, 4, 5, 1, 3, 0, 0, 0, 3, 2, 4, 6, 3, 5, 5, 2, 6, 5, 5, 3, 3, 4, 2, 2,
-                             6, 1]
-        all_top_indices_y = [0, 1, 0, 5, 2, 0, 2, 0, 0, 6, 0, 4, 6, 3, 5, 2, 6, 3, 3, 3, 5, 1, 1, 2, 4, 2, 1, 1, 3, 0,
-                             5, 3]
+    if "top" in method:
+        all_top_indices_x = [
+            0,
+            0,
+            6,
+            0,
+            0,
+            1,
+            1,
+            4,
+            5,
+            1,
+            3,
+            0,
+            0,
+            0,
+            3,
+            2,
+            4,
+            6,
+            3,
+            5,
+            5,
+            2,
+            6,
+            5,
+            5,
+            3,
+            3,
+            4,
+            2,
+            2,
+            6,
+            1,
+        ]
+        all_top_indices_y = [
+            0,
+            1,
+            0,
+            5,
+            2,
+            0,
+            2,
+            0,
+            0,
+            6,
+            0,
+            4,
+            6,
+            3,
+            5,
+            2,
+            6,
+            3,
+            3,
+            3,
+            5,
+            1,
+            1,
+            2,
+            4,
+            2,
+            1,
+            1,
+            3,
+            0,
+            5,
+            3,
+        ]
         mapper_x = all_top_indices_x[:num_freq]
         mapper_y = all_top_indices_y[:num_freq]
-    elif 'low' in method:
-        all_low_indices_x = [0, 0, 1, 1, 0, 2, 2, 1, 2, 0, 3, 4, 0, 1, 3, 0, 1, 2, 3, 4, 5, 0, 1, 2, 3, 4, 5, 6, 1, 2,
-                             3, 4]
-        all_low_indices_y = [0, 1, 0, 1, 2, 0, 1, 2, 2, 3, 0, 0, 4, 3, 1, 5, 4, 3, 2, 1, 0, 6, 5, 4, 3, 2, 1, 0, 6, 5,
-                             4, 3]
+    elif "low" in method:
+        all_low_indices_x = [
+            0,
+            0,
+            1,
+            1,
+            0,
+            2,
+            2,
+            1,
+            2,
+            0,
+            3,
+            4,
+            0,
+            1,
+            3,
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            1,
+            2,
+            3,
+            4,
+        ]
+        all_low_indices_y = [
+            0,
+            1,
+            0,
+            1,
+            2,
+            0,
+            1,
+            2,
+            2,
+            3,
+            0,
+            0,
+            4,
+            3,
+            1,
+            5,
+            4,
+            3,
+            2,
+            1,
+            0,
+            6,
+            5,
+            4,
+            3,
+            2,
+            1,
+            0,
+            6,
+            5,
+            4,
+            3,
+        ]
         mapper_x = all_low_indices_x[:num_freq]
         mapper_y = all_low_indices_y[:num_freq]
-    elif 'bot' in method:
-        all_bot_indices_x = [6, 1, 3, 3, 2, 4, 1, 2, 4, 4, 5, 1, 4, 6, 2, 5, 6, 1, 6, 2, 2, 4, 3, 3, 5, 5, 6, 2, 5, 5,
-                             3, 6]
-        all_bot_indices_y = [6, 4, 4, 6, 6, 3, 1, 4, 4, 5, 6, 5, 2, 2, 5, 1, 4, 3, 5, 0, 3, 1, 1, 2, 4, 2, 1, 1, 5, 3,
-                             3, 3]
+    elif "bot" in method:
+        all_bot_indices_x = [
+            6,
+            1,
+            3,
+            3,
+            2,
+            4,
+            1,
+            2,
+            4,
+            4,
+            5,
+            1,
+            4,
+            6,
+            2,
+            5,
+            6,
+            1,
+            6,
+            2,
+            2,
+            4,
+            3,
+            3,
+            5,
+            5,
+            6,
+            2,
+            5,
+            5,
+            3,
+            6,
+        ]
+        all_bot_indices_y = [
+            6,
+            4,
+            4,
+            6,
+            6,
+            3,
+            1,
+            4,
+            4,
+            5,
+            6,
+            5,
+            2,
+            2,
+            5,
+            1,
+            4,
+            3,
+            5,
+            0,
+            3,
+            1,
+            1,
+            2,
+            4,
+            2,
+            1,
+            1,
+            5,
+            3,
+            3,
+            3,
+        ]
         mapper_x = all_bot_indices_x[:num_freq]
         mapper_y = all_bot_indices_y[:num_freq]
     else:
@@ -51,14 +260,8 @@ def get_freq_indices(method):
 
 
 class MultiFrequencyChannelAttention(nn.Module):
-    def __init__(self,
-                 in_channels,
-                 dct_h, dct_w,
-                 frequency_branches=16,
-                 frequency_selection='top',
-                 reduction=16):
-        """
-        初始化 MultiFrequencyChannelAttention 类。
+    def __init__(self, in_channels, dct_h, dct_w, frequency_branches=16, frequency_selection="top", reduction=16):
+        """初始化 MultiFrequencyChannelAttention 类。.
 
         参数:
         - in_channels: int, 输入特征图的通道数。
@@ -68,7 +271,7 @@ class MultiFrequencyChannelAttention(nn.Module):
         - frequency_selection: str, 频率选择方法，例如 'top', 'low', 'bot'。
         - reduction: int, 通道缩减比例。
         """
-        super(MultiFrequencyChannelAttention, self).__init__()
+        super().__init__()
 
         assert frequency_branches in [1, 2, 4, 8, 16, 32]
         frequency_selection = frequency_selection + str(frequency_branches)
@@ -87,22 +290,24 @@ class MultiFrequencyChannelAttention(nn.Module):
 
         # 初始化 DCT 滤波器
         for freq_idx in range(frequency_branches):
-            self.register_buffer('dct_weight_{}'.format(freq_idx),
-                                 self.get_dct_filter(dct_h, dct_w, mapper_x[freq_idx], mapper_y[freq_idx], in_channels))
+            self.register_buffer(
+                f"dct_weight_{freq_idx}",
+                self.get_dct_filter(dct_h, dct_w, mapper_x[freq_idx], mapper_y[freq_idx], in_channels),
+            )
 
         # 定义全连接层
         self.fc = nn.Sequential(
             nn.Conv2d(in_channels, in_channels // reduction, kernel_size=1, stride=1, padding=0, bias=False),
             nn.ReLU(inplace=True),
-            nn.Conv2d(in_channels // reduction, in_channels, kernel_size=1, stride=1, padding=0, bias=False))
+            nn.Conv2d(in_channels // reduction, in_channels, kernel_size=1, stride=1, padding=0, bias=False),
+        )
 
         # 定义池化层
         self.average_channel_pooling = nn.AdaptiveAvgPool2d(1)
         self.max_channel_pooling = nn.AdaptiveMaxPool2d(1)
 
     def forward(self, x):
-        """
-        前向传播函数。
+        """前向传播函数。.
 
         参数:
         - x: torch.Tensor, 输入特征图，形状为 (batch_size, in_channels, H, W)。
@@ -121,7 +326,7 @@ class MultiFrequencyChannelAttention(nn.Module):
         # 计算多频谱特征
         multi_spectral_feature_avg, multi_spectral_feature_max, multi_spectral_feature_min = 0, 0, 0
         for name, params in self.state_dict().items():
-            if 'dct_weight' in name:
+            if "dct_weight" in name:
                 x_pooled_spectral = x_pooled * params
                 multi_spectral_feature_avg += self.average_channel_pooling(x_pooled_spectral)
                 multi_spectral_feature_max += self.max_channel_pooling(x_pooled_spectral)
@@ -137,14 +342,14 @@ class MultiFrequencyChannelAttention(nn.Module):
 
         # 合并注意力图并应用 Sigmoid 激活函数
         multi_spectral_attention_map = F.sigmoid(
-            multi_spectral_avg_map + multi_spectral_max_map + multi_spectral_min_map)
+            multi_spectral_avg_map + multi_spectral_max_map + multi_spectral_min_map
+        )
 
         # 将注意力图应用到输入特征图上
         return x * multi_spectral_attention_map.expand_as(x)
 
     def get_dct_filter(self, tile_size_x, tile_size_y, mapper_x, mapper_y, in_channels):
-        """
-        生成 DCT 滤波器。
+        """生成 DCT 滤波器。.
 
         参数:
         - tile_size_x: int, DCT 滤波器的高度。
@@ -160,15 +365,14 @@ class MultiFrequencyChannelAttention(nn.Module):
 
         for t_x in range(tile_size_x):
             for t_y in range(tile_size_y):
-                dct_filter[:, t_x, t_y] = self.build_filter(t_x, mapper_x, tile_size_x) * self.build_filter(t_y,
-                                                                                                            mapper_y,
-                                                                                                            tile_size_y)
+                dct_filter[:, t_x, t_y] = self.build_filter(t_x, mapper_x, tile_size_x) * self.build_filter(
+                    t_y, mapper_y, tile_size_y
+                )
 
         return dct_filter
 
     def build_filter(self, pos, freq, POS):
-        """
-        构建 DCT 滤波器的基函数。
+        """构建 DCT 滤波器的基函数。.
 
         参数:
         - pos: int, 当前位置。
@@ -183,6 +387,7 @@ class MultiFrequencyChannelAttention(nn.Module):
             return result
         else:
             return result * math.sqrt(2)
+
 
 def autopad(k, p=None, d=1):  # kernel, padding, dilation
     """Pad to 'same' shape outputs."""
@@ -213,9 +418,9 @@ class Conv(nn.Module):
         """Perform transposed convolution of 2D data."""
         return self.act(self.conv(x))
 
+
 class PSABloc_MFCA(nn.Module):
-    """
-    PSABlock class implementing a Position-Sensitive Attention block for neural networks.
+    """PSABlock class implementing a Position-Sensitive Attention block for neural networks.
 
     This class encapsulates the functionality for applying multi-head attention and feed-forward neural network layers
     with optional shortcut connections.
@@ -239,8 +444,9 @@ class PSABloc_MFCA(nn.Module):
         """Initializes the PSABlock with attention and feed-forward layers for enhanced feature extraction."""
         super().__init__()
 
-        self.attn = MultiFrequencyChannelAttention(in_channels=c, dct_h=7, dct_w=7, frequency_branches=16,
-                                          frequency_selection='top')
+        self.attn = MultiFrequencyChannelAttention(
+            in_channels=c, dct_h=7, dct_w=7, frequency_branches=16, frequency_selection="top"
+        )
         self.ffn = nn.Sequential(Conv(c, c * 2, 1), Conv(c * 2, c, 1, act=False))
         self.add = shortcut
 
@@ -251,10 +457,8 @@ class PSABloc_MFCA(nn.Module):
         return x
 
 
-
 class C2PSA_MFCA(nn.Module):
-    """
-    C2PSA module with attention mechanism for enhanced feature extraction and processing.
+    """C2PSA module with attention mechanism for enhanced feature extraction and processing.
 
     This module implements a convolutional block with attention mechanisms to enhance feature extraction and processing
     capabilities. It includes a series of PSABlock modules for self-attention and feed-forward operations.
@@ -268,13 +472,13 @@ class C2PSA_MFCA(nn.Module):
     Methods:
         forward: Performs a forward pass through the C2PSA module, applying attention and feed-forward operations.
 
-    Notes:
-        This module essentially is the same as PSA module, but refactored to allow stacking more PSABlock modules.
-
     Examples:
         >>> c2psa = C2PSA(c1=256, c2=256, n=3, e=0.5)
         >>> input_tensor = torch.randn(1, 256, 64, 64)
         >>> output_tensor = c2psa(input_tensor)
+
+    Notes:
+        This module essentially is the same as PSA module, but refactored to allow stacking more PSABlock modules.
     """
 
     def __init__(self, c1, c2, n=1, e=0.5):
@@ -299,8 +503,9 @@ def main():
     x = torch.randn(1, 64, 27, 32)
 
     # 初始化 MultiFrequencyChannelAttention
-    mfca = MultiFrequencyChannelAttention(in_channels=64, dct_h=7, dct_w=7, frequency_branches=16,
-                                          frequency_selection='top')
+    mfca = MultiFrequencyChannelAttention(
+        in_channels=64, dct_h=7, dct_w=7, frequency_branches=16, frequency_selection="top"
+    )
 
     # 应用多频率通道注意力机制
     output = mfca(x)

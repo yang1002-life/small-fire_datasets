@@ -14,13 +14,13 @@ scales: # model compound scaling constants, i.e. 'model=yolo11n.yaml' will call 
 # YOLO11n backbone
 backbone:
   # [from, repeats, module, args]
-  - [-1, 1, PatchEmbed, [96, 4]]  # 0 [b, 96, 160, 160]
-  - [-1, 1, SwinStage , [96, 2, 3, 7]]  # 1 [b, 96, 160, 160]
-  - [-1, 1, PatchMerging, [192]]    # 2 [b, 192, 80, 80]
-  - [-1, 1, SwinStage,  [192, 2, 6, 7]]  # 3 --F0-- [b, 192, 80, 80] p3
-  - [-1, 1, PatchMerging, [384]]   # 4 [b, 384, 40, 40]
+  - [-1, 1, PatchEmbed, [96, 4]] # 0 [b, 96, 160, 160]
+  - [-1, 1, SwinStage, [96, 2, 3, 7]] # 1 [b, 96, 160, 160]
+  - [-1, 1, PatchMerging, [192]] # 2 [b, 192, 80, 80]
+  - [-1, 1, SwinStage, [192, 2, 6, 7]] # 3 --F0-- [b, 192, 80, 80] p3
+  - [-1, 1, PatchMerging, [384]] # 4 [b, 384, 40, 40]
   - [-1, 1, SwinStage, [384, 6, 12, 7]] # 5 --F1-- [b, 384, 40, 40] p4
-  - [-1, 1, PatchMerging, [768]]   # 6 [b, 768, 20, 20]
+  - [-1, 1, PatchMerging, [768]] # 6 [b, 768, 20, 20]
   - [-1, 1, SwinStage, [768, 2, 24, 7]] # 7 --F2-- [b, 768, 20, 20]
   - [-1, 1, SPPF, [768, 5]]
 

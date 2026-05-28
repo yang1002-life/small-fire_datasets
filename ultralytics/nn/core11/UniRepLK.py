@@ -8,21 +8,23 @@
 # https://github.com/facebookresearch/deit/
 # https://github.com/facebookresearch/dino
 # --------------------------------------------------------'
+import warnings
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from timm.models.layers import trunc_normal_, DropPath, to_2tuple
 import torch.utils.checkpoint as checkpoint
+from timm.models.layers import DropPath, to_2tuple
 
-import warnings
-warnings.filterwarnings('ignore', message='Warning: grad and param do not obey the gradient layout contract.')
+warnings.filterwarnings("ignore", message="Warning: grad and param do not obey the gradient layout contract.")
+
 
 class GRNwithNHWC(nn.Module):
-    """ GRN (Global Response Normalization) layer
-    Originally proposed in ConvNeXt V2 (https://arxiv.org/abs/2301.00808)
-    This implementation is more efficient than the original (https://github.com/facebookresearch/ConvNeXt-V2)
-    We assume the inputs to this layer are (N, H, W, C)
+    """GRN (Global Response Normalization) layer Originally proposed in ConvNeXt V2 (https://arxiv.org/abs/2301.00808)
+    This implementation is more efficient than the original (https://github.com/facebookresearch/ConvNeXt-V2) We
+    assume the inputs to this layer are (N, H, W, C).
     """
+
     def __init__(self, dim, use_bias=True):
         super().__init__()
         self.use_bias = use_bias
@@ -54,22 +56,32 @@ class NHWCtoNCHW(nn.Module):
     def forward(self, x):
         return x.permute(0, 3, 1, 2)
 
-#================== This function decides which conv implementation (the native or iGEMM) to use
+
+# ================== This function decides which conv implementation (the native or iGEMM) to use
 #   Note that iGEMM large-kernel conv impl will be used if
 #       -   you attempt to do so (attempt_to_use_large_impl=True), and
 #       -   it has been installed (follow https://github.com/AILab-CVC/UniRepLKNet), and
 #       -   the conv layer is depth-wise, stride = 1, non-dilated, kernel_size > 5, and padding == kernel_size // 2
-def get_conv2d(in_channels, out_channels, kernel_size, stride, padding, dilation, groups, bias,
-               attempt_use_lk_impl=True):
+def get_conv2d(
+    in_channels, out_channels, kernel_size, stride, padding, dilation, groups, bias, attempt_use_lk_impl=True
+):
     kernel_size = to_2tuple(kernel_size)
     if padding is None:
         padding = (kernel_size[0] // 2, kernel_size[1] // 2)
     else:
         padding = to_2tuple(padding)
-    need_large_impl = kernel_size[0] == kernel_size[1] and kernel_size[0] > 5 and padding == (kernel_size[0] // 2, kernel_size[1] // 2)
+    kernel_size[0] == kernel_size[1] and kernel_size[0] > 5 and padding == (kernel_size[0] // 2, kernel_size[1] // 2)
 
-    return nn.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size, stride=stride,
-                     padding=padding, dilation=dilation, groups=groups, bias=bias)
+    return nn.Conv2d(
+        in_channels=in_channels,
+        out_channels=out_channels,
+        kernel_size=kernel_size,
+        stride=stride,
+        padding=padding,
+        dilation=dilation,
+        groups=groups,
+        bias=bias,
+    )
 
 
 def get_bn(dim, use_sync_bn=False):
@@ -78,17 +90,20 @@ def get_bn(dim, use_sync_bn=False):
     else:
         return nn.BatchNorm2d(dim)
 
+
 class SEBlock(nn.Module):
+    """Squeeze-and-Excitation Block proposed in SENet (https://arxiv.org/abs/1709.01507) We assume the inputs to this
+    layer are (N, C, H, W).
     """
-    Squeeze-and-Excitation Block proposed in SENet (https://arxiv.org/abs/1709.01507)
-    We assume the inputs to this layer are (N, C, H, W)
-    """
+
     def __init__(self, input_channels, internal_neurons):
-        super(SEBlock, self).__init__()
-        self.down = nn.Conv2d(in_channels=input_channels, out_channels=internal_neurons,
-                              kernel_size=1, stride=1, bias=True)
-        self.up = nn.Conv2d(in_channels=internal_neurons, out_channels=input_channels,
-                            kernel_size=1, stride=1, bias=True)
+        super().__init__()
+        self.down = nn.Conv2d(
+            in_channels=input_channels, out_channels=internal_neurons, kernel_size=1, stride=1, bias=True
+        )
+        self.up = nn.Conv2d(
+            in_channels=internal_neurons, out_channels=input_channels, kernel_size=1, stride=1, bias=True
+        )
         self.input_channels = input_channels
         self.nonlinear = nn.ReLU(inplace=True)
 
@@ -100,10 +115,14 @@ class SEBlock(nn.Module):
         x = F.sigmoid(x)
         return inputs * x.view(-1, self.input_channels, 1, 1)
 
+
 def fuse_bn(conv, bn):
     conv_bias = 0 if conv.bias is None else conv.bias
     std = (bn.running_var + bn.eps).sqrt()
-    return conv.weight * (bn.weight / std).reshape(-1, 1, 1, 1), bn.bias + (conv_bias - bn.running_mean) * bn.weight / std
+    return conv.weight * (bn.weight / std).reshape(-1, 1, 1, 1), bn.bias + (
+        conv_bias - bn.running_mean
+    ) * bn.weight / std
+
 
 def convert_dilated_to_nondilated(kernel, dilate_rate):
     identity_kernel = torch.ones((1, 1, 1, 1))
@@ -115,9 +134,10 @@ def convert_dilated_to_nondilated(kernel, dilate_rate):
         #   This is a dense or group-wise (but not DW) kernel
         slices = []
         for i in range(kernel.size(1)):
-            dilated = F.conv_transpose2d(kernel[:,i:i+1,:,:], identity_kernel, stride=dilate_rate)
+            dilated = F.conv_transpose2d(kernel[:, i : i + 1, :, :], identity_kernel, stride=dilate_rate)
             slices.append(dilated)
         return torch.cat(slices, dim=1)
+
 
 def merge_dilated_into_large_kernel(large_kernel, dilated_kernel, dilated_r):
     large_k = large_kernel.size(2)
@@ -130,15 +150,23 @@ def merge_dilated_into_large_kernel(large_kernel, dilated_kernel, dilated_r):
 
 
 class DilatedReparamBlock(nn.Module):
+    """Dilated Reparam Block proposed in UniRepLKNet (https://github.com/AILab-CVC/UniRepLKNet) We assume the inputs to
+    this block are (N, C, H, W).
     """
-    Dilated Reparam Block proposed in UniRepLKNet (https://github.com/AILab-CVC/UniRepLKNet)
-    We assume the inputs to this block are (N, C, H, W)
-    """
+
     def __init__(self, channels, kernel_size, deploy, use_sync_bn=False, attempt_use_lk_impl=True):
         super().__init__()
-        self.lk_origin = get_conv2d(channels, channels, kernel_size, stride=1,
-                                    padding=kernel_size//2, dilation=1, groups=channels, bias=deploy,
-                                    attempt_use_lk_impl=attempt_use_lk_impl)
+        self.lk_origin = get_conv2d(
+            channels,
+            channels,
+            kernel_size,
+            stride=1,
+            padding=kernel_size // 2,
+            dilation=1,
+            groups=channels,
+            bias=deploy,
+            attempt_use_lk_impl=attempt_use_lk_impl,
+        )
         self.attempt_use_lk_impl = attempt_use_lk_impl
 
         #   Default settings. We did not tune them carefully. Different settings may work better.
@@ -164,66 +192,84 @@ class DilatedReparamBlock(nn.Module):
             self.kernel_sizes = [3, 3]
             self.dilates = [1, 2]
         else:
-            raise ValueError('Dilated Reparam Block requires kernel_size >= 5')
+            raise ValueError("Dilated Reparam Block requires kernel_size >= 5")
 
         if not deploy:
             self.origin_bn = get_bn(channels, use_sync_bn)
             for k, r in zip(self.kernel_sizes, self.dilates):
-                self.__setattr__('dil_conv_k{}_{}'.format(k, r),
-                                 nn.Conv2d(in_channels=channels, out_channels=channels, kernel_size=k, stride=1,
-                                           padding=(r * (k - 1) + 1) // 2, dilation=r, groups=channels,
-                                           bias=False))
-                self.__setattr__('dil_bn_k{}_{}'.format(k, r), get_bn(channels, use_sync_bn=use_sync_bn))
+                self.__setattr__(
+                    f"dil_conv_k{k}_{r}",
+                    nn.Conv2d(
+                        in_channels=channels,
+                        out_channels=channels,
+                        kernel_size=k,
+                        stride=1,
+                        padding=(r * (k - 1) + 1) // 2,
+                        dilation=r,
+                        groups=channels,
+                        bias=False,
+                    ),
+                )
+                self.__setattr__(f"dil_bn_k{k}_{r}", get_bn(channels, use_sync_bn=use_sync_bn))
 
     def forward(self, x):
-        if not hasattr(self, 'origin_bn'):      # deploy mode
+        if not hasattr(self, "origin_bn"):  # deploy mode
             return self.lk_origin(x)
         out = self.origin_bn(self.lk_origin(x))
         for k, r in zip(self.kernel_sizes, self.dilates):
-            conv = self.__getattr__('dil_conv_k{}_{}'.format(k, r))
-            bn = self.__getattr__('dil_bn_k{}_{}'.format(k, r))
+            conv = self.__getattr__(f"dil_conv_k{k}_{r}")
+            bn = self.__getattr__(f"dil_bn_k{k}_{r}")
             out = out + bn(conv(x))
         return out
 
     def merge_dilated_branches(self):
-        if hasattr(self, 'origin_bn'):
+        if hasattr(self, "origin_bn"):
             origin_k, origin_b = fuse_bn(self.lk_origin, self.origin_bn)
             for k, r in zip(self.kernel_sizes, self.dilates):
-                conv = self.__getattr__('dil_conv_k{}_{}'.format(k, r))
-                bn = self.__getattr__('dil_bn_k{}_{}'.format(k, r))
+                conv = self.__getattr__(f"dil_conv_k{k}_{r}")
+                bn = self.__getattr__(f"dil_bn_k{k}_{r}")
                 branch_k, branch_b = fuse_bn(conv, bn)
                 origin_k = merge_dilated_into_large_kernel(origin_k, branch_k, r)
                 origin_b += branch_b
-            merged_conv = get_conv2d(origin_k.size(0), origin_k.size(0), origin_k.size(2), stride=1,
-                                    padding=origin_k.size(2)//2, dilation=1, groups=origin_k.size(0), bias=True,
-                                    attempt_use_lk_impl=self.attempt_use_lk_impl)
+            merged_conv = get_conv2d(
+                origin_k.size(0),
+                origin_k.size(0),
+                origin_k.size(2),
+                stride=1,
+                padding=origin_k.size(2) // 2,
+                dilation=1,
+                groups=origin_k.size(0),
+                bias=True,
+                attempt_use_lk_impl=self.attempt_use_lk_impl,
+            )
             merged_conv.weight.data = origin_k
             merged_conv.bias.data = origin_b
             self.lk_origin = merged_conv
-            self.__delattr__('origin_bn')
+            self.__delattr__("origin_bn")
             for k, r in zip(self.kernel_sizes, self.dilates):
-                self.__delattr__('dil_conv_k{}_{}'.format(k, r))
-                self.__delattr__('dil_bn_k{}_{}'.format(k, r))
+                self.__delattr__(f"dil_conv_k{k}_{r}")
+                self.__delattr__(f"dil_bn_k{k}_{r}")
 
 
 class LarKB(nn.Module):
-
-    def __init__(self,
-                 dim,
-                 kernel_size,
-                 drop_path=0.,
-                 layer_scale_init_value=1e-6,
-                 deploy=False,
-                 attempt_use_lk_impl=True,
-                 with_cp=False,
-                 use_sync_bn=False,
-                 ffn_factor=4):
+    def __init__(
+        self,
+        dim,
+        kernel_size,
+        drop_path=0.0,
+        layer_scale_init_value=1e-6,
+        deploy=False,
+        attempt_use_lk_impl=True,
+        with_cp=False,
+        use_sync_bn=False,
+        ffn_factor=4,
+    ):
         super().__init__()
         self.with_cp = with_cp
         if deploy:
-            print('------------------------------- Note: deploy mode')
+            print("------------------------------- Note: deploy mode")
         if self.with_cp:
-            print('****** note with_cp = True, reduce memory consumption but may slow down training ******')
+            print("****** note with_cp = True, reduce memory consumption but may slow down training ******")
 
         self.need_contiguous = (not deploy) or kernel_size >= 7
 
@@ -231,48 +277,60 @@ class LarKB(nn.Module):
             self.dwconv = nn.Identity()
             self.norm = nn.Identity()
         elif deploy:
-            self.dwconv = get_conv2d(dim, dim, kernel_size=kernel_size, stride=1, padding=kernel_size // 2,
-                                     dilation=1, groups=dim, bias=True,
-                                     attempt_use_lk_impl=attempt_use_lk_impl)
+            self.dwconv = get_conv2d(
+                dim,
+                dim,
+                kernel_size=kernel_size,
+                stride=1,
+                padding=kernel_size // 2,
+                dilation=1,
+                groups=dim,
+                bias=True,
+                attempt_use_lk_impl=attempt_use_lk_impl,
+            )
             self.norm = nn.Identity()
         elif kernel_size >= 7:
-            self.dwconv = DilatedReparamBlock(dim, kernel_size, deploy=deploy,
-                                              use_sync_bn=use_sync_bn,
-                                              attempt_use_lk_impl=attempt_use_lk_impl)
+            self.dwconv = DilatedReparamBlock(
+                dim, kernel_size, deploy=deploy, use_sync_bn=use_sync_bn, attempt_use_lk_impl=attempt_use_lk_impl
+            )
             self.norm = get_bn(dim, use_sync_bn=use_sync_bn)
         elif kernel_size == 1:
-            self.dwconv = nn.Conv2d(dim, dim, kernel_size=kernel_size, stride=1, padding=kernel_size // 2,
-                                    dilation=1, groups=1, bias=deploy)
+            self.dwconv = nn.Conv2d(
+                dim, dim, kernel_size=kernel_size, stride=1, padding=kernel_size // 2, dilation=1, groups=1, bias=deploy
+            )
             self.norm = get_bn(dim, use_sync_bn=use_sync_bn)
         else:
             assert kernel_size in [3, 5]
-            self.dwconv = nn.Conv2d(dim, dim, kernel_size=kernel_size, stride=1, padding=kernel_size // 2,
-                                    dilation=1, groups=dim, bias=deploy)
+            self.dwconv = nn.Conv2d(
+                dim,
+                dim,
+                kernel_size=kernel_size,
+                stride=1,
+                padding=kernel_size // 2,
+                dilation=1,
+                groups=dim,
+                bias=deploy,
+            )
             self.norm = get_bn(dim, use_sync_bn=use_sync_bn)
 
         self.se = SEBlock(dim, dim // 4)
 
         ffn_dim = int(ffn_factor * dim)
-        self.pwconv1 = nn.Sequential(
-            NCHWtoNHWC(),
-            nn.Linear(dim, ffn_dim))
-        self.act = nn.Sequential(
-            nn.GELU(),
-            GRNwithNHWC(ffn_dim, use_bias=not deploy))
+        self.pwconv1 = nn.Sequential(NCHWtoNHWC(), nn.Linear(dim, ffn_dim))
+        self.act = nn.Sequential(nn.GELU(), GRNwithNHWC(ffn_dim, use_bias=not deploy))
         if deploy:
-            self.pwconv2 = nn.Sequential(
-                nn.Linear(ffn_dim, dim),
-                NHWCtoNCHW())
+            self.pwconv2 = nn.Sequential(nn.Linear(ffn_dim, dim), NHWCtoNCHW())
         else:
             self.pwconv2 = nn.Sequential(
-                nn.Linear(ffn_dim, dim, bias=False),
-                NHWCtoNCHW(),
-                get_bn(dim, use_sync_bn=use_sync_bn))
+                nn.Linear(ffn_dim, dim, bias=False), NHWCtoNCHW(), get_bn(dim, use_sync_bn=use_sync_bn)
+            )
 
-        self.gamma = nn.Parameter(layer_scale_init_value * torch.ones(dim),
-                                  requires_grad=True) if (not deploy) and layer_scale_init_value is not None \
-                                                         and layer_scale_init_value > 0 else None
-        self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
+        self.gamma = (
+            nn.Parameter(layer_scale_init_value * torch.ones(dim), requires_grad=True)
+            if (not deploy) and layer_scale_init_value is not None and layer_scale_init_value > 0
+            else None
+        )
+        self.drop_path = DropPath(drop_path) if drop_path > 0.0 else nn.Identity()
 
     def forward(self, inputs):
 
@@ -289,6 +347,7 @@ class LarKB(nn.Module):
             return checkpoint.checkpoint(_f, inputs)
         else:
             return _f(inputs)
+
 
 # from ultralytics.nn.modules.block import Conv
 def autopad(k, p=None, d=1):  # kernel, padding, dilation
@@ -320,11 +379,12 @@ class Conv(nn.Module):
         """Perform transposed convolution of 2D data."""
         return self.act(self.conv(x))
 
+
 class RepConvN(nn.Module):
-    """RepConv is a basic rep-style block, including training and deploy status
-    This code is based on https://github.com/DingXiaoH/RepVGG/blob/main/repvgg.py
-    # https://github.com/iscyy/ultralyticsPro
+    """RepConv is a basic rep-style block, including training and deploy status This code is based on
+    https://github.com/DingXiaoH/RepVGG/blob/main/repvgg.py # https://github.com/iscyy/ultralyticsPro.
     """
+
     default_act = nn.SiLU()  # default activation
 
     def __init__(self, c1, c2, k=3, s=1, p=1, g=1, d=1, act=True, bn=False, deploy=False):
@@ -340,11 +400,11 @@ class RepConvN(nn.Module):
         self.conv2 = Conv(c1, c2, 1, s, p=(p - k // 2), g=g, act=False)
 
     def forward_fuse(self, x):
-        """Forward process"""
+        """Forward process."""
         return self.act(self.conv(x))
 
     def forward(self, x):
-        """Forward process"""
+        """Forward process."""
         id_out = 0 if self.bn is None else self.bn(x)
         return self.act(self.conv1(x) + self.conv2(x) + id_out)
 
@@ -360,7 +420,7 @@ class RepConvN(nn.Module):
         kernel_size = avgp.kernel_size
         input_dim = channels // groups
         k = torch.zeros((channels, input_dim, kernel_size, kernel_size))
-        k[np.arange(channels), np.tile(np.arange(input_dim), groups), :, :] = 1.0 / kernel_size ** 2
+        k[np.arange(channels), np.tile(np.arange(input_dim), groups), :, :] = 1.0 / kernel_size**2
         return k
 
     def _pad_1x1_to_3x3_tensor(self, kernel1x1):
@@ -380,7 +440,7 @@ class RepConvN(nn.Module):
             beta = branch.bn.bias
             eps = branch.bn.eps
         elif isinstance(branch, nn.BatchNorm2d):
-            if not hasattr(self, 'id_tensor'):
+            if not hasattr(self, "id_tensor"):
                 input_dim = self.c1 // self.g
                 kernel_value = np.zeros((self.c1, input_dim, 3, 3), dtype=np.float32)
                 for i in range(self.c1):
@@ -397,29 +457,32 @@ class RepConvN(nn.Module):
         return kernel * t, beta - running_mean * gamma / std
 
     def fuse_convs(self):
-        if hasattr(self, 'conv'):
+        if hasattr(self, "conv"):
             return
         kernel, bias = self.get_equivalent_kernel_bias()
-        self.conv = nn.Conv2d(in_channels=self.conv1.conv.in_channels,
-                              out_channels=self.conv1.conv.out_channels,
-                              kernel_size=self.conv1.conv.kernel_size,
-                              stride=self.conv1.conv.stride,
-                              padding=self.conv1.conv.padding,
-                              dilation=self.conv1.conv.dilation,
-                              groups=self.conv1.conv.groups,
-                              bias=True).requires_grad_(False)
+        self.conv = nn.Conv2d(
+            in_channels=self.conv1.conv.in_channels,
+            out_channels=self.conv1.conv.out_channels,
+            kernel_size=self.conv1.conv.kernel_size,
+            stride=self.conv1.conv.stride,
+            padding=self.conv1.conv.padding,
+            dilation=self.conv1.conv.dilation,
+            groups=self.conv1.conv.groups,
+            bias=True,
+        ).requires_grad_(False)
         self.conv.weight.data = kernel
         self.conv.bias.data = bias
         for para in self.parameters():
             para.detach_()
-        self.__delattr__('conv1')
-        self.__delattr__('conv2')
-        if hasattr(self, 'nm'):
-            self.__delattr__('nm')
-        if hasattr(self, 'bn'):
-            self.__delattr__('bn')
-        if hasattr(self, 'id_tensor'):
-            self.__delattr__('id_tensor')
+        self.__delattr__("conv1")
+        self.__delattr__("conv2")
+        if hasattr(self, "nm"):
+            self.__delattr__("nm")
+        if hasattr(self, "bn"):
+            self.__delattr__("bn")
+        if hasattr(self, "id_tensor"):
+            self.__delattr__("id_tensor")
+
 
 class RepNBottleneck(nn.Module):
     # Standard bottleneck
@@ -433,6 +496,7 @@ class RepNBottleneck(nn.Module):
     def forward(self, x):
         return x + self.cv2(self.cv1(x)) if self.add else self.cv2(self.cv1(x))
 
+
 class Bottleneck(nn.Module):
     # Standard bottleneck
     def __init__(self, c1, c2, shortcut=True, g=1, k=(3, 3), e=0.5):  # ch_in, ch_out, shortcut, kernels, groups, expand
@@ -444,22 +508,28 @@ class Bottleneck(nn.Module):
 
     def forward(self, x):
         return x + self.cv2(self.cv1(x)) if self.add else self.cv2(self.cv1(x))
-################# 
+
+
+#################
 class CPNUniRepLK(nn.Module):
     def __init__(self, c1, c2, n=1, extra=2, shortcut=True, g=1, e=0.5):
         super().__init__()
-        self.c = int(c2 * e)  
+        self.c = int(c2 * e)
         self.cv1 = Conv(c1, 2 * self.c, 1, 1)
-        self.cv2 = Conv(2 * self.c, c2, 1) 
+        self.cv2 = Conv(2 * self.c, c2, 1)
         self.m = nn.Sequential(*(LarKB(self.c, 11) for _ in range(n)))
+
     def forward(self, x):
         a, b = self.cv1(x).chunk(2, 1)
         return self.cv2(torch.cat((self.m(a), b), 1))
 
+
 class C3_UniRepLK(nn.Module):
     # C3_UniRepLK Bottleneck with 3 convolutions
     # https://github.com/iscyy/ultralyticsPro
-    def __init__(self, c1, c2, n=1, extra=2, shortcut=True, g=1, e=0.5):  # ch_in, ch_out, number, shortcut, groups, expansion
+    def __init__(
+        self, c1, c2, n=1, extra=2, shortcut=True, g=1, e=0.5
+    ):  # ch_in, ch_out, number, shortcut, groups, expansion
         super().__init__()
         c_ = int(c2 * e)  # hidden channels
         self.cv1 = Conv(c1, c_, 1, 1)
@@ -470,6 +540,7 @@ class C3_UniRepLK(nn.Module):
     def forward(self, x):
         return self.cv3(torch.cat((self.m(self.cv1(x)), self.cv2(x)), dim=1))
 
+
 class C2f_UniRepLK(nn.Module):
     """Faster Implementation of CSP Bottleneck with 2 convolutions."""
 
@@ -478,9 +549,9 @@ class C2f_UniRepLK(nn.Module):
         expansion.
         """
         super().__init__()
-        self.c = int(c2 * e)  
+        self.c = int(c2 * e)
         self.cv1 = Conv(c1, 2 * self.c, 1, 1)
-        self.cv2 = Conv((2 + n) * self.c, c2, 1)  
+        self.cv2 = Conv((2 + n) * self.c, c2, 1)
         self.m = nn.Sequential(*(LarKB(self.c, 11) for _ in range(n)))
 
     def forward(self, x):
@@ -495,9 +566,12 @@ class C2f_UniRepLK(nn.Module):
         y.extend(m(y[-1]) for m in self.m)
         return self.cv2(torch.cat(y, 1))
 
+
 class CSCUniRepLK(nn.Module):
-    def __init__(self, c1, c2, n=1, extra=2, shortcut=True, k=(1, 1), g=1, e=0.5):  # ch_in, ch_out, number, shortcut, groups, expansion
-        super(CSCUniRepLK, self).__init__()
+    def __init__(
+        self, c1, c2, n=1, extra=2, shortcut=True, k=(1, 1), g=1, e=0.5
+    ):  # ch_in, ch_out, number, shortcut, groups, expansion
+        super().__init__()
         c_ = int(c2 * e)  # hidden channels
         self.cv1 = Conv(c1, c_, k[0], 1)
         self.cv2 = Conv(c1, c_, k[0], 1)
@@ -510,8 +584,11 @@ class CSCUniRepLK(nn.Module):
         y2 = self.cv2(x)
         return self.cv4(torch.cat((y1, y2), dim=1))
 
+
 class ReNBC(nn.Module):
-    def __init__(self, c1, c2, n=1, extra=2, isUse=False, shortcut=True, g=1, e=0.5):  # ch_in, ch_out, number, shortcut, groups, expansion
+    def __init__(
+        self, c1, c2, n=1, extra=2, isUse=False, shortcut=True, g=1, e=0.5
+    ):  # ch_in, ch_out, number, shortcut, groups, expansion
         super().__init__()
         c_ = int(c2 * e)  # hidden channels
         self.cv1 = Conv(c1, c_, 1, 1)
@@ -525,15 +602,16 @@ class ReNBC(nn.Module):
     def forward(self, x):
         return self.cv3(torch.cat((self.m(self.cv1(x)), self.cv2(x)), 1))
 
+
 class ReNLANUniRepLK(nn.Module):
     # ReNLANUniRepLK Block
     def __init__(self, c1, c2, c3, c4, c=True, n=1):  # ch_in, ch_out, number, shortcut, groups, expansion
         super().__init__()
-        self.c = c3//2
+        self.c = c3 // 2
         self.cv1 = Conv(c1, c3, 1, 1)
-        self.cv2 = nn.Sequential(ReNBC(c3//2, c4, n, isUse=False))
+        self.cv2 = nn.Sequential(ReNBC(c3 // 2, c4, n, isUse=False))
         self.cv3 = nn.Sequential(ReNBC(c4, c4, n, isUse=False))
-        self.cv4 = Conv(c3+(2*c4), c2, 1, 1)
+        self.cv4 = Conv(c3 + (2 * c4), c2, 1, 1)
 
     def forward(self, x):
         y = list(self.cv1(x).chunk(2, 1))
