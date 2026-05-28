@@ -23,7 +23,6 @@ The datasets include flame images collected from controlled experiments and dive
 
 ## Suggested structure
 
-When the dataset files are released, they should be organized as follows:
 
 ```text
 small-fire_datasets/
