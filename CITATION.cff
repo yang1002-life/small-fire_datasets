@@ -1,0 +1,37 @@
+cff-version: 1.2.0
+message: "If you use this dataset or repository, please cite the associated paper."
+title: "Small-Scale Fire Datasets"
+type: dataset
+authors:
+  - family-names: Dai
+    given-names: Jinyang
+  - family-names: Cao
+    given-names: Qiuyang
+  - family-names: Song
+    given-names: Xiaoning
+  - family-names: Pan
+    given-names: Bence
+  - family-names: Zhang
+    given-names: Qixing
+repository-code: "https://github.com/yang1002-life/small-fire_datasets"
+url: "https://www.sciencedirect.com/science/article/pii/S0379711226001050"
+date-released: 2026-03-17
+preferred-citation:
+  type: article
+  title: "FireDet: A framework for precise detection and localization of small-scale fire"
+  authors:
+    - family-names: Dai
+      given-names: Jinyang
+    - family-names: Cao
+      given-names: Qiuyang
+    - family-names: Song
+      given-names: Xiaoning
+    - family-names: Pan
+      given-names: Bence
+    - family-names: Zhang
+      given-names: Qixing
+  journal: "Fire Safety Journal"
+  volume: "162"
+  year: 2026
+  doi: "10.1016/j.firesaf.2026.104737"
+  url: "https://www.sciencedirect.com/science/article/pii/S0379711226001050"
