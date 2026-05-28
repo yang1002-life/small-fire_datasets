@@ -11,7 +11,6 @@ scales: # model compound scaling constants, i.e. 'model=yolo11n-seg.yaml' will c
   l: [1.00, 1.00, 512] # summary: 667 layers, 27678368 parameters, 27678352 gradients, 143.0 GFLOPs
   x: [1.00, 1.50, 512] # summary: 667 layers, 62142656 parameters, 62142640 gradients, 320.2 GFLOPs
 
-
 # YOLO11n backbone
 backbone:
   # [from, repeats, module, args]
@@ -34,12 +33,12 @@ head:
   - [10, 1, Conv, [64, 1, 1]]
   - [11, 1, Conv, [128, 1, 1]]
   - [12, 1, Conv, [256, 1, 1]]
-  - [[13, 14], 1, ASFF_2, [64, 0]]  
-  - [[13, 14], 1, ASFF_2, [128, 1]]  
+  - [[13, 14], 1, ASFF_2, [64, 0]]
+  - [[13, 14], 1, ASFF_2, [128, 1]]
   - [16, 1, BasicBlock, [64]]
   - [17, 1, BasicBlock, [128]]
-  - [[18, 19, 15], 1, ASFF_3, [64, 0]]  
-  - [[18, 19, 15], 1, ASFF_3, [128, 1]] 
+  - [[18, 19, 15], 1, ASFF_3, [64, 0]]
+  - [[18, 19, 15], 1, ASFF_3, [128, 1]]
   - [[18, 19, 15], 1, ASFF_3, [256, 2]]
   - [20, 1, BasicBlock, [64]]
   - [21, 1, BasicBlock, [128]]

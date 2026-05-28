@@ -138,17 +138,17 @@ def test_predict_visualize(model):
 
 
 def test_predict_grey_and_4ch():
-    """Test YOLO prediction on SOURCE converted to greyscale and 4-channel images with various filenames."""
+    """Test YOLO prediction on SOURCE converted to grayscale and 4-channel images with various filenames."""
     im = Image.open(SOURCE)
     directory = TMP / "im4"
     directory.mkdir(parents=True, exist_ok=True)
 
-    source_greyscale = directory / "greyscale.jpg"
+    source_greyscale = directory / "grayscale.jpg"
     source_rgba = directory / "4ch.png"
     source_non_utf = directory / "non_UTF_测试文件_tést_image.jpg"
     source_spaces = directory / "image with spaces.jpg"
 
-    im.convert("L").save(source_greyscale)  # greyscale
+    im.convert("L").save(source_greyscale)  # grayscale
     im.convert("RGBA").save(source_rgba)  # 4-ch PNG with alpha
     im.save(source_non_utf)  # non-UTF characters in filename
     im.save(source_spaces)  # spaces in filename
@@ -178,8 +178,7 @@ def test_youtube():
 @pytest.mark.skipif(not ONLINE, reason="environment is offline")
 @pytest.mark.skipif(not IS_TMP_WRITEABLE, reason="directory is not writeable")
 def test_track_stream():
-    """
-    Test streaming tracking on a short 10 frame video using ByteTrack tracker and different GMC methods.
+    """Test streaming tracking on a short 10 frame video using ByteTrack tracker and different GMC methods.
 
     Note imgsz=160 required for tracking for higher confidence and better matches.
     """
@@ -258,7 +257,7 @@ def test_predict_callback_and_setup():
     model.add_callback("on_predict_batch_end", on_predict_batch_end)
 
     dataset = load_inference_source(source=SOURCE)
-    bs = dataset.bs  # noqa access predictor properties
+    bs = dataset.bs
     results = model.predict(dataset, stream=True, imgsz=160)  # source already setup
     for r, im0, bs in results:
         print("test_callback", im0.shape)
@@ -381,7 +380,12 @@ def test_cfg_init():
 
 def test_utils_init():
     """Test initialization utilities in the Ultralytics library."""
-    from ultralytics.utils import get_git_branch, get_git_origin_url, get_ubuntu_version, is_github_action_running
+    from ultralytics.utils import (
+        get_git_branch,
+        get_git_origin_url,
+        get_ubuntu_version,
+        is_github_action_running,
+    )
 
     get_ubuntu_version()
     is_github_action_running()
@@ -411,7 +415,11 @@ def test_utils_benchmarks():
 def test_utils_torchutils():
     """Test Torch utility functions including profiling and FLOP calculations."""
     from ultralytics.nn.modules.conv import Conv
-    from ultralytics.utils.torch_utils import get_flops_with_torch_profiler, profile_ops, time_sync
+    from ultralytics.utils.torch_utils import (
+        get_flops_with_torch_profiler,
+        profile_ops,
+        time_sync,
+    )
 
     x = torch.randn(1, 64, 20, 20)
     m = Conv(64, 64, k=1, s=2)
@@ -452,7 +460,12 @@ def test_utils_ops():
 
 def test_utils_files():
     """Test file handling utilities including file age, date, and paths with spaces."""
-    from ultralytics.utils.files import file_age, file_date, get_latest_run, spaces_in_path
+    from ultralytics.utils.files import (
+        file_age,
+        file_date,
+        get_latest_run,
+        spaces_in_path,
+    )
 
     file_age(SOURCE)
     file_date(SOURCE)
@@ -482,7 +495,13 @@ def test_utils_patches_torch_save():
 
 def test_nn_modules_conv():
     """Test Convolutional Neural Network modules including CBAM, Conv2, and ConvTranspose."""
-    from ultralytics.nn.modules.conv import CBAM, Conv2, ConvTranspose, DWConvTranspose2d, Focus
+    from ultralytics.nn.modules.conv import (
+        CBAM,
+        Conv2,
+        ConvTranspose,
+        DWConvTranspose2d,
+        Focus,
+    )
 
     c1, c2 = 8, 16  # input and output channels
     x = torch.zeros(4, c1, 10, 10)  # BCHW

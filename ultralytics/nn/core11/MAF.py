@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding:utf-8 -*-
 
 import warnings
 from pathlib import Path
@@ -7,20 +6,22 @@ from pathlib import Path
 import numpy as np
 import torch
 import torch.nn as nn
-from torch.nn.parameter import Parameter
-import torch.nn.init as init
 import torch.nn.functional as F
+from torch.nn.parameter import Parameter
+
 
 class SiLU(nn.Module):
-    '''Activation of SiLU'''
+    """Activation of SiLU."""
+
     @staticmethod
     def forward(x):
         return x * torch.sigmoid(x)
 
 
 class Conv(nn.Module):
-    '''Normal Conv with SiLU activation'''
-    def __init__(self, in_channels, out_channels, kernel_size = 1, stride = 1, groups=1, bias=False):
+    """Normal Conv with SiLU activation."""
+
+    def __init__(self, in_channels, out_channels, kernel_size=1, stride=1, groups=1, bias=False):
         super().__init__()
         padding = kernel_size // 2
         self.conv = nn.Conv2d(
@@ -43,7 +44,8 @@ class Conv(nn.Module):
 
 
 class SimConv(nn.Module):
-    '''Normal Conv with ReLU activation'''
+    """Normal Conv with ReLU activation."""
+
     def __init__(self, in_channels, out_channels, kernel_size, stride, groups=1, bias=False):
         super().__init__()
         padding = kernel_size // 2
@@ -65,8 +67,10 @@ class SimConv(nn.Module):
     def forward_fuse(self, x):
         return self.act(self.conv(x))
 
+
 class ConvWrapper(nn.Module):
-    '''Wrapper for normal Conv with SiLU activation'''
+    """Wrapper for normal Conv with SiLU activation."""
+
     def __init__(self, in_channels, out_channels, kernel_size=3, stride=1, groups=1, bias=False):
         super().__init__()
         self.block = Conv(in_channels, out_channels, kernel_size, stride, groups, bias)
@@ -76,7 +80,8 @@ class ConvWrapper(nn.Module):
 
 
 class SimConvWrapper(nn.Module):
-    '''Wrapper for normal Conv with ReLU activation'''
+    """Wrapper for normal Conv with ReLU activation."""
+
     def __init__(self, in_channels, out_channels, kernel_size=3, stride=1, groups=1, bias=True):
         super().__init__()
         self.block = SimConv(in_channels, out_channels, kernel_size, stride, groups, bias)
@@ -86,7 +91,8 @@ class SimConvWrapper(nn.Module):
 
 
 class SimSPPF(nn.Module):
-    '''Simplified SPPF with ReLU activation'''
+    """Simplified SPPF with ReLU activation."""
+
     def __init__(self, in_channels, out_channels, kernel_size=5):
         super().__init__()
         c_ = in_channels // 2  # hidden channels
@@ -97,14 +103,15 @@ class SimSPPF(nn.Module):
     def forward(self, x):
         x = self.cv1(x)
         with warnings.catch_warnings():
-            warnings.simplefilter('ignore')
+            warnings.simplefilter("ignore")
             y1 = self.m(x)
             y2 = self.m(y1)
             return self.cv2(torch.cat([x, y1, y2, self.m(y2)], 1))
 
 
 class SPPF(nn.Module):
-    '''Spatial Pyramid Pooling - Fast (SPPF) layer for YOLOv5 by Glenn Jocher'''
+    """Spatial Pyramid Pooling - Fast (SPPF) layer for YOLOv5 by Glenn Jocher."""
+
     def __init__(self, in_channels, out_channels, kernel_size=5):  # equivalent to SPP(k=(5, 9, 13))
         super().__init__()
         c_ = in_channels // 2  # hidden channels
@@ -115,22 +122,19 @@ class SPPF(nn.Module):
     def forward(self, x):
         x = self.cv1(x)
         with warnings.catch_warnings():
-            warnings.simplefilter('ignore')  # suppress torch 1.9.0 max_pool2d() warning
+            warnings.simplefilter("ignore")  # suppress torch 1.9.0 max_pool2d() warning
             y1 = self.m(x)
             y2 = self.m(y1)
             return self.cv2(torch.cat((x, y1, y2, self.m(y2)), 1))
 
 
 class Transpose(nn.Module):
-    '''Normal Transpose, default for upsampling'''
+    """Normal Transpose, default for upsampling."""
+
     def __init__(self, in_channels, out_channels, kernel_size=2, stride=2):
         super().__init__()
         self.upsample_transpose = torch.nn.ConvTranspose2d(
-            in_channels=in_channels,
-            out_channels=out_channels,
-            kernel_size=kernel_size,
-            stride=stride,
-            bias=True
+            in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size, stride=stride, bias=True
         )
 
     def forward(self, x):
@@ -147,21 +151,43 @@ class Concat(nn.Module):
 
 
 def conv_bn(in_channels, out_channels, kernel_size, stride, padding, groups=1):
-    '''Basic cell for rep-style block, including conv and bn'''
+    """Basic cell for rep-style block, including conv and bn."""
     result = nn.Sequential()
-    result.add_module('conv', nn.Conv2d(in_channels=in_channels, out_channels=out_channels,
-                                                  kernel_size=kernel_size, stride=stride, padding=padding, groups=groups, bias=False))
-    result.add_module('bn', nn.BatchNorm2d(num_features=out_channels))
+    result.add_module(
+        "conv",
+        nn.Conv2d(
+            in_channels=in_channels,
+            out_channels=out_channels,
+            kernel_size=kernel_size,
+            stride=stride,
+            padding=padding,
+            groups=groups,
+            bias=False,
+        ),
+    )
+    result.add_module("bn", nn.BatchNorm2d(num_features=out_channels))
     return result
 
 
 class RepVGGBlock(nn.Module):
-    '''RepVGGBlock is a basic rep-style block, including training and deploy status
-    This code is based on https://github.com/DingXiaoH/RepVGG/blob/main/repvgg.py
-    '''
-    def __init__(self, in_channels, out_channels, kernel_size=3,
-                 stride=1, padding=1, dilation=1, groups=1, padding_mode='zeros', deploy=False, use_se=False):
-        super(RepVGGBlock, self).__init__()
+    """RepVGGBlock is a basic rep-style block, including training and deploy status This code is based on
+    https://github.com/DingXiaoH/RepVGG/blob/main/repvgg.py.
+    """
+
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        kernel_size=3,
+        stride=1,
+        padding=1,
+        dilation=1,
+        groups=1,
+        padding_mode="zeros",
+        deploy=False,
+        use_se=False,
+    ):
+        super().__init__()
         """ Initialization of the class.
         Args:
             in_channels (int): Number of channels in the input image
@@ -195,17 +221,42 @@ class RepVGGBlock(nn.Module):
             self.se = nn.Identity()
 
         if deploy:
-            self.rbr_reparam = nn.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size, stride=stride,
-                                         padding=padding, dilation=dilation, groups=groups, bias=True, padding_mode=padding_mode)
+            self.rbr_reparam = nn.Conv2d(
+                in_channels=in_channels,
+                out_channels=out_channels,
+                kernel_size=kernel_size,
+                stride=stride,
+                padding=padding,
+                dilation=dilation,
+                groups=groups,
+                bias=True,
+                padding_mode=padding_mode,
+            )
 
         else:
-            self.rbr_identity = nn.BatchNorm2d(num_features=in_channels) if out_channels == in_channels and stride == 1 else None
-            self.rbr_dense = conv_bn(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size, stride=stride, padding=padding, groups=groups)
-            self.rbr_1x1 = conv_bn(in_channels=in_channels, out_channels=out_channels, kernel_size=1, stride=stride, padding=padding_11, groups=groups)
+            self.rbr_identity = (
+                nn.BatchNorm2d(num_features=in_channels) if out_channels == in_channels and stride == 1 else None
+            )
+            self.rbr_dense = conv_bn(
+                in_channels=in_channels,
+                out_channels=out_channels,
+                kernel_size=kernel_size,
+                stride=stride,
+                padding=padding,
+                groups=groups,
+            )
+            self.rbr_1x1 = conv_bn(
+                in_channels=in_channels,
+                out_channels=out_channels,
+                kernel_size=1,
+                stride=stride,
+                padding=padding_11,
+                groups=groups,
+            )
 
     def forward(self, inputs):
-        '''Forward process'''
-        if hasattr(self, 'rbr_reparam'):
+        """Forward process."""
+        if hasattr(self, "rbr_reparam"):
             return self.nonlinearity(self.se(self.rbr_reparam(inputs)))
 
         if self.rbr_identity is None:
@@ -239,7 +290,7 @@ class RepVGGBlock(nn.Module):
             eps = branch.bn.eps
         else:
             assert isinstance(branch, nn.BatchNorm2d)
-            if not hasattr(self, 'id_tensor'):
+            if not hasattr(self, "id_tensor"):
                 input_dim = self.in_channels // self.groups
                 kernel_value = np.zeros((self.in_channels, input_dim, 3, 3), dtype=np.float32)
                 for i in range(self.in_channels):
@@ -256,32 +307,41 @@ class RepVGGBlock(nn.Module):
         return kernel * t, beta - running_mean * gamma / std
 
     def switch_to_deploy(self):
-        if hasattr(self, 'rbr_reparam'):
+        if hasattr(self, "rbr_reparam"):
             return
         kernel, bias = self.get_equivalent_kernel_bias()
-        self.rbr_reparam = nn.Conv2d(in_channels=self.rbr_dense.conv.in_channels, out_channels=self.rbr_dense.conv.out_channels,
-                                     kernel_size=self.rbr_dense.conv.kernel_size, stride=self.rbr_dense.conv.stride,
-                                     padding=self.rbr_dense.conv.padding, dilation=self.rbr_dense.conv.dilation, groups=self.rbr_dense.conv.groups, bias=True)
+        self.rbr_reparam = nn.Conv2d(
+            in_channels=self.rbr_dense.conv.in_channels,
+            out_channels=self.rbr_dense.conv.out_channels,
+            kernel_size=self.rbr_dense.conv.kernel_size,
+            stride=self.rbr_dense.conv.stride,
+            padding=self.rbr_dense.conv.padding,
+            dilation=self.rbr_dense.conv.dilation,
+            groups=self.rbr_dense.conv.groups,
+            bias=True,
+        )
         self.rbr_reparam.weight.data = kernel
         self.rbr_reparam.bias.data = bias
         for para in self.parameters():
             para.detach_()
-        self.__delattr__('rbr_dense')
-        self.__delattr__('rbr_1x1')
-        if hasattr(self, 'rbr_identity'):
-            self.__delattr__('rbr_identity')
-        if hasattr(self, 'id_tensor'):
-            self.__delattr__('id_tensor')
+        self.__delattr__("rbr_dense")
+        self.__delattr__("rbr_1x1")
+        if hasattr(self, "rbr_identity"):
+            self.__delattr__("rbr_identity")
+        if hasattr(self, "id_tensor"):
+            self.__delattr__("id_tensor")
         self.deploy = True
 
 
-
 class DetectBackend(nn.Module):
-    def __init__(self, weights='yolov6s.pt', device=None, dnn=True):
+    def __init__(self, weights="yolov6s.pt", device=None, dnn=True):
 
         super().__init__()
-        assert isinstance(weights, str) and Path(weights).suffix == '.pt', f'{Path(weights).suffix} format is not supported.'
+        assert isinstance(weights, str) and Path(weights).suffix == ".pt", (
+            f"{Path(weights).suffix} format is not supported."
+        )
         from yolov6.utils.checkpoint import load_checkpoint
+
         model = load_checkpoint(weights, map_location=device)
         stride = int(model.stride.max())
         self.__dict__.update(locals())  # assign all variables to self
@@ -292,10 +352,10 @@ class DetectBackend(nn.Module):
             y = torch.tensor(y, device=self.device)
         return y
 
+
 class RepConvBlock(nn.Module):
-    '''
-        RepBlock is a stage block with rep-style basic block
-    '''
+    """RepBlock is a stage block with rep-style basic block."""
+
     def __init__(self, in_channels, out_channels, n=1, block=RepVGGBlock, basic_block=RepVGGBlock):
         super().__init__()
 
@@ -312,16 +372,15 @@ class RepConvBlock(nn.Module):
             x = self.block(x)
         return x
 
+
 class RepConv(nn.Module):
-    '''
-        RepBlock is a stage block with rep-style basic block
-    '''
+    """RepBlock is a stage block with rep-style basic block."""
+
     def __init__(self, in_channels, out_channels, n=1, block=RepVGGBlock, basic_block=RepVGGBlock):
         super().__init__()
 
         self.conv1 = RepVGGBlock(in_channels, out_channels)
         self.conv2 = ConvWrapper(in_channels, out_channels)
-
 
     def forward(self, x):
         input = x
@@ -329,8 +388,9 @@ class RepConv(nn.Module):
         x = self.conv2(x)
         x = x + input
         return x
-class BottleRep(nn.Module):
 
+
+class BottleRep(nn.Module):
     def __init__(self, in_channels, out_channels, basic_block=RepVGGBlock, weight=False):
         super().__init__()
         self.conv1 = basic_block(in_channels, out_channels)
@@ -350,18 +410,18 @@ class BottleRep(nn.Module):
         return outputs + self.alpha * x if self.shortcut else outputs
 
 
-
 class MP(nn.Module):
     def __init__(self, k=2):
-        super(MP, self).__init__()
+        super().__init__()
         self.m = nn.MaxPool2d(kernel_size=k, stride=k)
 
     def forward(self, x):
         return self.m(x)
 
+
 class Out(nn.Module):
     def __init__(self):
-        super(Out, self).__init__()
+        super().__init__()
 
     def forward(self, x):
         outputs = []
@@ -386,22 +446,20 @@ class Out(nn.Module):
 #         out = torch.cat([x1, x2], dim=1)
 #         return out
 class Stem(nn.Module):
-    def __init__(self,in_channels,out_channels,block=RepVGGBlock):
-        super(Stem, self).__init__()
-        self.stem = block(
-            in_channels=in_channels,
-            out_channels=out_channels,
-            kernel_size=3,
-            stride=2
-        )
-    def forward(self,x):
+    def __init__(self, in_channels, out_channels, block=RepVGGBlock):
+        super().__init__()
+        self.stem = block(in_channels=in_channels, out_channels=out_channels, kernel_size=3, stride=2)
+
+    def forward(self, x):
         x = self.stem(x)
         return x
+
+
 class MPRep(nn.Module):
     def __init__(self, c1, c2, idx=1, block=""):  # c1 = c2
         c_ = c2 // 2
         self.idx = idx
-        super(MPRep, self).__init__()
+        super().__init__()
         self.mp = MP()
         self.conv1 = Conv(c1, c_, 1, 1)
 
@@ -414,10 +472,11 @@ class MPRep(nn.Module):
         x2 = self.conv2(input)
         out = torch.cat([x1, x2], dim=1)
         return out
-    
+
+
 class Head_DepthUni(nn.Module):
-    def __init__(self,in_channels,out_channels,reg_max = 16,kersize = 5, num_classes = 3, num_anchors = 1):
-        super(Head_DepthUni, self).__init__()
+    def __init__(self, in_channels, out_channels, reg_max=16, kersize=5, num_classes=3, num_anchors=1):
+        super().__init__()
 
         self.stem = Conv(in_channels, out_channels, kernel_size=1, stride=1)
         self.cls_conv = UniRepLKNetBlock(out_channels, kernel_size=kersize)
@@ -428,55 +487,67 @@ class Head_DepthUni(nn.Module):
         self.reg_pred = nn.Conv2d(in_channels=out_channels, out_channels=4 * (reg_max + num_anchors), kernel_size=1)
         self.prior_prob = 1e-2
         self.initialize_biases()
+
     def initialize_biases(self):
 
-
-        b = self.cls_pred.bias.view(-1, )
+        b = self.cls_pred.bias.view(
+            -1,
+        )
         b.data.fill_(-math.log((1 - self.prior_prob) / self.prior_prob))
         self.cls_pred.bias = torch.nn.Parameter(b.view(-1), requires_grad=True)
         w = self.cls_pred.weight
-        w.data.fill_(0.)
+        w.data.fill_(0.0)
         self.cls_pred.weight = torch.nn.Parameter(w, requires_grad=True)
 
-
-        b = self.reg_pred.bias.view(-1, )
+        b = self.reg_pred.bias.view(
+            -1,
+        )
         b.data.fill_(1.0)
         self.reg_pred.bias = torch.nn.Parameter(b.view(-1), requires_grad=True)
         w = self.reg_pred.weight
-        w.data.fill_(0.)
+        w.data.fill_(0.0)
         self.reg_pred.weight = torch.nn.Parameter(w, requires_grad=True)
 
-    def forward(self,x):
+    def forward(self, x):
         x = self.stem(x)
         cls_x = x
         reg_x = x
         cls_feat = self.cls_conv_s(self.cls_conv(cls_x))
-        
+
         cls_output = self.cls_pred(cls_feat)
         cls_output = torch.sigmoid(cls_output)
         reg_feat = self.reg_conv_s(self.reg_conv(reg_x))
         reg_output = self.reg_pred(reg_feat)
 
         return x, cls_output, reg_output
-class DepthBottleneck(nn.Module):
-    def __init__(self,
-                 in_channels,
-                 out_channels,
-                 shortcut=True,
-                 kersize = 5,
-                 expansion_depth = 1,
-                 small_kersize = 3,
-                 use_depthwise=True):
-        super(DepthBottleneck, self).__init__()
 
+
+class DepthBottleneck(nn.Module):
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        shortcut=True,
+        kersize=5,
+        expansion_depth=1,
+        small_kersize=3,
+        use_depthwise=True,
+    ):
+        super().__init__()
 
         mid_channel = int(in_channels * expansion_depth)
         self.conv1 = Conv(in_channels, mid_channel, 3)
         self.shortcut = shortcut
         if use_depthwise:
-            self.conv2 = ReparamLargeKernelConv(in_channels=mid_channel, out_channels=out_channels,
-                                                kernel_size=kersize, stride=1,groups=mid_channel,small_kernel=small_kersize)
-            self.one_conv = Conv(mid_channel,out_channels,kernel_size = 1)
+            self.conv2 = ReparamLargeKernelConv(
+                in_channels=mid_channel,
+                out_channels=out_channels,
+                kernel_size=kersize,
+                stride=1,
+                groups=mid_channel,
+                small_kernel=small_kersize,
+            )
+            self.one_conv = Conv(mid_channel, out_channels, kernel_size=1)
 
         else:
             self.conv2 = Conv(out_channels, out_channels, 3, 1)
@@ -492,17 +563,19 @@ class DepthBottleneck(nn.Module):
         else:
             return y
 
-class DepthBottleneckUni(nn.Module):
-    def __init__(self,
-                 in_channels,
-                 out_channels,
-                 shortcut=True,
-                 kersize = 5,
-                 expansion_depth = 1,
-                 small_kersize = 3,
-                 use_depthwise=True):
-        super(DepthBottleneckUni, self).__init__()
 
+class DepthBottleneckUni(nn.Module):
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        shortcut=True,
+        kersize=5,
+        expansion_depth=1,
+        small_kersize=3,
+        use_depthwise=True,
+    ):
+        super().__init__()
 
         mid_channel = int(in_channels * expansion_depth)
         self.conv1 = Conv(in_channels, mid_channel, 1)
@@ -510,7 +583,7 @@ class DepthBottleneckUni(nn.Module):
         if use_depthwise:
             self.conv2 = UniRepLKNetBlock(mid_channel, kernel_size=kersize)
             self.act = nn.SiLU()
-            self.one_conv = Conv(mid_channel,out_channels,kernel_size = 1)
+            self.one_conv = Conv(mid_channel, out_channels, kernel_size=1)
         else:
             self.conv2 = Conv(out_channels, out_channels, 3, 1)
 
@@ -520,6 +593,7 @@ class DepthBottleneckUni(nn.Module):
         y = self.one_conv(y)
         return y
 
+
 def autopad(k, p=None, d=1):  # kernel, padding, dilation
     # Pad to 'same' shape outputs
     if d > 1:
@@ -527,10 +601,14 @@ def autopad(k, p=None, d=1):  # kernel, padding, dilation
     if p is None:
         p = k // 2 if isinstance(k, int) else [x // 2 for x in k]  # auto-pad
     return p
+
+
 import math
+
+
 class Head_layers(nn.Module):
-    def __init__(self,in_channels,out_channels,reg_max = 16,num_classes = 3, num_anchors = 1):
-        super(Head_layers, self).__init__()
+    def __init__(self, in_channels, out_channels, reg_max=16, num_classes=3, num_anchors=1):
+        super().__init__()
 
         self.stem = Conv(in_channels=in_channels, out_channels=out_channels, kernel_size=1, stride=1)
         # cls_conv0
@@ -543,25 +621,28 @@ class Head_layers(nn.Module):
         self.reg_pred = nn.Conv2d(in_channels=out_channels, out_channels=4 * (reg_max + num_anchors), kernel_size=1)
         self.prior_prob = 1e-2
         self.initialize_biases()
+
     def initialize_biases(self):
 
-
-        b = self.cls_pred.bias.view(-1, )
+        b = self.cls_pred.bias.view(
+            -1,
+        )
         b.data.fill_(-math.log((1 - self.prior_prob) / self.prior_prob))
         self.cls_pred.bias = torch.nn.Parameter(b.view(-1), requires_grad=True)
         w = self.cls_pred.weight
-        w.data.fill_(0.)
+        w.data.fill_(0.0)
         self.cls_pred.weight = torch.nn.Parameter(w, requires_grad=True)
 
-
-        b = self.reg_pred.bias.view(-1, )
+        b = self.reg_pred.bias.view(
+            -1,
+        )
         b.data.fill_(1.0)
         self.reg_pred.bias = torch.nn.Parameter(b.view(-1), requires_grad=True)
         w = self.reg_pred.weight
-        w.data.fill_(0.)
+        w.data.fill_(0.0)
         self.reg_pred.weight = torch.nn.Parameter(w, requires_grad=True)
 
-    def forward(self,x):
+    def forward(self, x):
         x = self.stem(x)
         cls_x = x
         reg_x = x
@@ -575,8 +656,8 @@ class Head_layers(nn.Module):
 
 
 class Head_simota(nn.Module):
-    def __init__(self,in_channels,out_channels, reg_max = 16,num_classes = 3, num_anchors = 1):
-        super(Head_simota, self).__init__()
+    def __init__(self, in_channels, out_channels, reg_max=16, num_classes=3, num_anchors=1):
+        super().__init__()
         self.stem = Conv(in_channels=in_channels, out_channels=out_channels, kernel_size=1, stride=1)
         # cls_conv0
         self.cls_conv = Conv(in_channels=out_channels, out_channels=out_channels, kernel_size=3, stride=1)
@@ -590,6 +671,7 @@ class Head_simota(nn.Module):
         self.obj_pred = nn.Conv2d(in_channels=out_channels, out_channels=1 * (num_anchors), kernel_size=1)
         self.prior_prob = 1e-2
         self.initialize_biases()
+
     def initialize_biases(self):
         self.na = 1
         b = self.cls_pred.bias.view(self.na, -1)
@@ -600,7 +682,7 @@ class Head_simota(nn.Module):
         b.data.fill_(-math.log((1 - self.prior_prob) / self.prior_prob))
         self.obj_pred.bias = torch.nn.Parameter(b.view(-1), requires_grad=True)
 
-    def forward(self,x):
+    def forward(self, x):
         x = self.stem(x)
         cls_x = x
         reg_x = x
@@ -612,40 +694,51 @@ class Head_simota(nn.Module):
         obj_pred = self.obj_pred(reg_feat)
 
         return cls_output, reg_output, obj_pred
+
+
 class Head_out(nn.Module):
-    def __init__(self,in_channels,out_channels,reg_max = 16,num_classes = 3, num_anchors = 1):
-        super(Head_out, self).__init__()
+    def __init__(self, in_channels, out_channels, reg_max=16, num_classes=3, num_anchors=1):
+        super().__init__()
         self.stem_cls = Conv(in_channels=in_channels, out_channels=out_channels, kernel_size=1, stride=1)
         self.stem_reg = Conv(in_channels=in_channels, out_channels=out_channels, kernel_size=1, stride=1)
         # cls_conv0
         self.cls_conv = Conv(in_channels=out_channels, out_channels=num_classes * num_anchors, kernel_size=3, stride=1)
         # reg_conv0
-        self.reg_conv = Conv(in_channels=out_channels, out_channels=4 * (reg_max + num_anchors), kernel_size=3, stride=1)
+        self.reg_conv = Conv(
+            in_channels=out_channels, out_channels=4 * (reg_max + num_anchors), kernel_size=3, stride=1
+        )
         # cls_pred0
-        self.cls_pred = nn.Conv2d(in_channels=num_classes * num_anchors, out_channels=num_classes * num_anchors, kernel_size=1)
+        self.cls_pred = nn.Conv2d(
+            in_channels=num_classes * num_anchors, out_channels=num_classes * num_anchors, kernel_size=1
+        )
         # reg_pred0
-        self.reg_pred = nn.Conv2d(in_channels=4 * (reg_max + num_anchors), out_channels=4 * (reg_max + num_anchors), kernel_size=1)
+        self.reg_pred = nn.Conv2d(
+            in_channels=4 * (reg_max + num_anchors), out_channels=4 * (reg_max + num_anchors), kernel_size=1
+        )
         self.prior_prob = 1e-2
         self.initialize_biases()
+
     def initialize_biases(self):
 
-
-        b = self.cls_pred.bias.view(-1, )
+        b = self.cls_pred.bias.view(
+            -1,
+        )
         b.data.fill_(-math.log((1 - self.prior_prob) / self.prior_prob))
         self.cls_pred.bias = torch.nn.Parameter(b.view(-1), requires_grad=True)
         w = self.cls_pred.weight
-        w.data.fill_(0.)
+        w.data.fill_(0.0)
         self.cls_pred.weight = torch.nn.Parameter(w, requires_grad=True)
 
-
-        b = self.reg_pred.bias.view(-1, )
+        b = self.reg_pred.bias.view(
+            -1,
+        )
         b.data.fill_(1.0)
         self.reg_pred.bias = torch.nn.Parameter(b.view(-1), requires_grad=True)
         w = self.reg_pred.weight
-        w.data.fill_(0.)
+        w.data.fill_(0.0)
         self.reg_pred.weight = torch.nn.Parameter(w, requires_grad=True)
 
-    def forward(self,x):
+    def forward(self, x):
         cls_x = self.stem_cls(x)
         reg_x = self.stem_reg(x)
         cls_output = self.cls_pred(self.cls_conv(cls_x))
@@ -654,17 +747,18 @@ class Head_out(nn.Module):
 
         return x, cls_output, reg_output
 
+
 def hard_sigmoid(x, inplace: bool = False):
     if inplace:
         return x.add_(3.0).clamp_(0.0, 6.0).div_(6.0)
     else:
         return F.relu6(x + 3.0) / 6.0
+
+
 def _make_divisible(v, divisor, min_value=None):
-    """
-    This function is taken from the original tf repo.
-    It ensures that all layers have a channel number that is divisible by 8
-    It can be seen here:
-    https://github.com/tensorflow/models/blob/master/research/slim/nets/mobilenet/mobilenet.py
+    """This function is taken from the original tf repo. It ensures that all layers have a channel number that is
+    divisible by 8 It can be seen
+    here: https://github.com/tensorflow/models/blob/master/research/slim/nets/mobilenet/mobilenet.py.
     """
     if min_value is None:
         min_value = divisor
@@ -673,15 +767,17 @@ def _make_divisible(v, divisor, min_value=None):
     if new_v < 0.9 * v:
         new_v += divisor
     return new_v
+
+
 import copy
-def repghost_model_convert(model:torch.nn.Module, save_path=None, do_copy=True):
-    """
-    taken from from https://github.com/DingXiaoH/RepVGG/blob/main/repvgg.py
-    """
+
+
+def repghost_model_convert(model: torch.nn.Module, save_path=None, do_copy=True):
+    """Taken from from https://github.com/DingXiaoH/RepVGG/blob/main/repvgg.py."""
     if do_copy:
         model = copy.deepcopy(model)
     for module in model.modules():
-        if hasattr(module, 'switch_to_deploy'):
+        if hasattr(module, "switch_to_deploy"):
             module.switch_to_deploy()
     if save_path is not None:
         torch.save(model.state_dict(), save_path)
@@ -691,7 +787,7 @@ def repghost_model_convert(model:torch.nn.Module, save_path=None, do_copy=True):
 class SimCSPSPPF(nn.Module):
     # CSP https://github.com/WongKinYiu/CrossStagePartialNetworks
     def __init__(self, in_channels, out_channels, kernel_size=5, e=0.5):
-        super(SimCSPSPPF, self).__init__()
+        super().__init__()
         c_ = int(out_channels * e)  # hidden channels
         self.cv1 = SimConv(in_channels, c_, 1, 1)
         self.cv2 = SimConv(in_channels, c_, 1, 1)
@@ -707,19 +803,27 @@ class SimCSPSPPF(nn.Module):
         x1 = self.cv4(self.cv3(self.cv1(x)))
         y0 = self.cv2(x)
         with warnings.catch_warnings():
-            warnings.simplefilter('ignore')
+            warnings.simplefilter("ignore")
             y1 = self.m(x1)
             y2 = self.m(y1)
             y3 = self.cv6(self.cv5(torch.cat([x1, y1, y2, self.m(y2)], 1)))
         return self.cv7(torch.cat((y0, y3), dim=1))
 
 
-from einops import rearrange
-
 class RepELANMS(nn.Module):
-    def __init__(self, in_channels, out_channels, depth=1, shortcut=True, expansion=0.5, kersize=5, depth_expansion=1,
-                 small_kersize=3, use_depthwise=True):
-        super(RepELANMS, self).__init__()
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        depth=1,
+        shortcut=True,
+        expansion=0.5,
+        kersize=5,
+        depth_expansion=1,
+        small_kersize=3,
+        use_depthwise=True,
+    ):
+        super().__init__()
         c1 = int(out_channels * expansion) * 3
         c_ = int(out_channels * expansion)
         self.c_ = c_
@@ -741,18 +845,33 @@ class RepELANMS(nn.Module):
         y_out = self.conv2(y_out)
         return y_out
 
+
 class RepELANMS2(nn.Module):
-    def __init__(self, in_channels, out_channels, depth=1, shortcut=True, expansion=0.5, kersize=5, depth_expansion=1,
-                 small_kersize=3, use_depthwise=True):
-        super(RepELANMS2, self).__init__()
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        depth=1,
+        shortcut=True,
+        expansion=0.5,
+        kersize=5,
+        depth_expansion=1,
+        small_kersize=3,
+        use_depthwise=True,
+    ):
+        super().__init__()
         c1 = int(out_channels * expansion) * 3
         c_ = int(out_channels * expansion)
         self.c_ = c_
         self.conv1 = Conv(in_channels, c1, 1, 1)
         self.m1 = DepthBottleneckUni(self.c_, self.c_, shortcut, kersize, depth_expansion, small_kersize, use_depthwise)
-        self.m11 = DepthBottleneckUni(self.c_, self.c_, shortcut, kersize, depth_expansion, small_kersize, use_depthwise)
+        self.m11 = DepthBottleneckUni(
+            self.c_, self.c_, shortcut, kersize, depth_expansion, small_kersize, use_depthwise
+        )
         self.m2 = DepthBottleneckUni(self.c_, self.c_, shortcut, kersize, depth_expansion, small_kersize, use_depthwise)
-        self.m22 = DepthBottleneckUni(self.c_, self.c_, shortcut, kersize, depth_expansion, small_kersize, use_depthwise)
+        self.m22 = DepthBottleneckUni(
+            self.c_, self.c_, shortcut, kersize, depth_expansion, small_kersize, use_depthwise
+        )
         self.conv2 = Conv(c_ * 5, out_channels, 1, 1)
 
     def forward(self, x):
@@ -775,14 +894,26 @@ class RepELANMS2(nn.Module):
 
 
 class QARepVGGBlock(RepVGGBlock):
+    """RepVGGBlock is a basic rep-style block, including training and deploy status This code is based on
+    https://arxiv.org/abs/2212.01593.
     """
-    RepVGGBlock is a basic rep-style block, including training and deploy status
-    This code is based on https://arxiv.org/abs/2212.01593
-    """
-    def __init__(self, in_channels, out_channels, kernel_size=3,
-                 stride=1, padding=1, dilation=1, groups=1, padding_mode='zeros', deploy=False, use_se=False):
-        super(QARepVGGBlock, self).__init__(in_channels, out_channels, kernel_size, stride, padding, dilation, groups,
-                                              padding_mode, deploy, use_se)
+
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        kernel_size=3,
+        stride=1,
+        padding=1,
+        dilation=1,
+        groups=1,
+        padding_mode="zeros",
+        deploy=False,
+        use_se=False,
+    ):
+        super().__init__(
+            in_channels, out_channels, kernel_size, stride, padding, dilation, groups, padding_mode, deploy, use_se
+        )
         if not deploy:
             self.bn = nn.BatchNorm2d(out_channels)
             self.rbr_1x1 = nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=stride, groups=groups, bias=False)
@@ -790,7 +921,7 @@ class QARepVGGBlock(RepVGGBlock):
         self._id_tensor = None
 
     def forward(self, inputs):
-        if hasattr(self, 'rbr_reparam'):
+        if hasattr(self, "rbr_reparam"):
             return self.nonlinearity(self.bn(self.se(self.rbr_reparam(inputs))))
 
         if self.rbr_identity is None:
@@ -799,7 +930,6 @@ class QARepVGGBlock(RepVGGBlock):
             id_out = self.rbr_identity(inputs)
 
         return self.nonlinearity(self.bn(self.se(self.rbr_dense(inputs) + self.rbr_1x1(inputs) + id_out)))
-
 
     def get_equivalent_kernel_bias(self):
         kernel3x3, bias3x3 = self._fuse_bn_tensor(self.rbr_dense)
@@ -817,7 +947,7 @@ class QARepVGGBlock(RepVGGBlock):
 
     def _fuse_extra_bn_tensor(self, kernel, bias, branch):
         assert isinstance(branch, nn.BatchNorm2d)
-        running_mean = branch.running_mean - bias # remove bias
+        running_mean = branch.running_mean - bias  # remove bias
         running_var = branch.running_var
         gamma = branch.weight
         beta = branch.bias
@@ -827,24 +957,32 @@ class QARepVGGBlock(RepVGGBlock):
         return kernel * t, beta - running_mean * gamma / std
 
     def switch_to_deploy(self):
-        if hasattr(self, 'rbr_reparam'):
+        if hasattr(self, "rbr_reparam"):
             return
         kernel, bias = self.get_equivalent_kernel_bias()
-        self.rbr_reparam = nn.Conv2d(in_channels=self.rbr_dense.conv.in_channels, out_channels=self.rbr_dense.conv.out_channels,
-                                     kernel_size=self.rbr_dense.conv.kernel_size, stride=self.rbr_dense.conv.stride,
-                                     padding=self.rbr_dense.conv.padding, dilation=self.rbr_dense.conv.dilation, groups=self.rbr_dense.conv.groups, bias=True)
+        self.rbr_reparam = nn.Conv2d(
+            in_channels=self.rbr_dense.conv.in_channels,
+            out_channels=self.rbr_dense.conv.out_channels,
+            kernel_size=self.rbr_dense.conv.kernel_size,
+            stride=self.rbr_dense.conv.stride,
+            padding=self.rbr_dense.conv.padding,
+            dilation=self.rbr_dense.conv.dilation,
+            groups=self.rbr_dense.conv.groups,
+            bias=True,
+        )
         self.rbr_reparam.weight.data = kernel
         self.rbr_reparam.bias.data = bias
         for para in self.parameters():
             para.detach_()
-        self.__delattr__('rbr_dense')
-        self.__delattr__('rbr_1x1')
-        if hasattr(self, 'rbr_identity'):
-            self.__delattr__('rbr_identity')
-        if hasattr(self, 'id_tensor'):
-            self.__delattr__('id_tensor')
+        self.__delattr__("rbr_dense")
+        self.__delattr__("rbr_1x1")
+        if hasattr(self, "rbr_identity"):
+            self.__delattr__("rbr_identity")
+        if hasattr(self, "id_tensor"):
+            self.__delattr__("id_tensor")
 
         self.deploy = True
+
 
 class AVG_down(nn.Module):
     def __init__(self, down_n=2):
@@ -854,7 +992,7 @@ class AVG_down(nn.Module):
         # self.output_size = np.array([H, W])
 
     def forward(self, x):
-        B, C, H, W = x.shape
+        _B, _C, H, W = x.shape
         H = int(H / self.down_n)
         W = int(W / self.down_n)
         output_size = np.array([H, W])
@@ -863,50 +1001,67 @@ class AVG_down(nn.Module):
 
 
 def get_block(mode):
-    if mode == 'repvgg':
+    if mode == "repvgg":
         return RepVGGBlock
-    elif mode == 'conv_relu':
+    elif mode == "conv_relu":
         return SimConvWrapper
-    elif mode == 'conv_silu':
+    elif mode == "conv_silu":
         return ConvWrapper
     else:
-        raise NotImplementedError("Undefied Repblock choice for mode {}".format(mode))
+        raise NotImplementedError(f"Undefined Repblock choice for mode {mode}")
 
-def get_activation(name='silu', inplace=True):
+
+def get_activation(name="silu", inplace=True):
     if name is None:
         return nn.Identity()
 
     if isinstance(name, str):
-        if name == 'silu':
+        if name == "silu":
             module = nn.SiLU(inplace=inplace)
-        elif name == 'relu':
+        elif name == "relu":
             module = nn.ReLU(inplace=inplace)
-        elif name == 'lrelu':
+        elif name == "lrelu":
             module = nn.LeakyReLU(0.1, inplace=inplace)
-        elif name == 'hardsigmoid':
+        elif name == "hardsigmoid":
             module = nn.Hardsigmoid(inplace=inplace)
-        elif name == 'identity':
+        elif name == "identity":
             module = nn.Identity()
         else:
-            raise AttributeError('Unsupported act type: {}'.format(name))
+            raise AttributeError(f"Unsupported act type: {name}")
         return module
 
     elif isinstance(name, nn.Module):
         return name
 
     else:
-        raise AttributeError('Unsupported act type: {}'.format(name))
+        raise AttributeError(f"Unsupported act type: {name}")
+
+
 class CSPDepthResELAN(nn.Module):
-    def __init__(self, in_channels, out_channels, depth=1, shortcut = True, expansion = 0.5, kersize = 5,depth_expansion = 1,small_kersize = 3,use_depthwise = True):
-        super(CSPDepthResELAN, self).__init__()
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        depth=1,
+        shortcut=True,
+        expansion=0.5,
+        kersize=5,
+        depth_expansion=1,
+        small_kersize=3,
+        use_depthwise=True,
+    ):
+        super().__init__()
         c1 = int(out_channels * expansion) * 2
         c_ = int(out_channels * expansion)
         self.c_ = c_
         self.conv1 = Conv(in_channels, c1, 1, 1)
-        self.m = nn.ModuleList(DepthBottleneck(self.c_, self.c_, shortcut,kersize,depth_expansion,small_kersize,use_depthwise) for _ in range(depth))
-        self.conv2 = Conv(c_ * (depth+2), out_channels, 1, 1)
+        self.m = nn.ModuleList(
+            DepthBottleneck(self.c_, self.c_, shortcut, kersize, depth_expansion, small_kersize, use_depthwise)
+            for _ in range(depth)
+        )
+        self.conv2 = Conv(c_ * (depth + 2), out_channels, 1, 1)
 
-    def forward(self,x):
+    def forward(self, x):
         x = self.conv1(x)
         x_out = list(x.split((self.c_, self.c_), 1))
         for conv in self.m:
@@ -914,18 +1069,34 @@ class CSPDepthResELAN(nn.Module):
             x_out.append(y)
         y_out = torch.cat(x_out, axis=1)
         y_out = self.conv2(y_out)
-        return  y_out
+        return y_out
+
+
 class RepHDW(nn.Module):
-    def __init__(self, in_channels, out_channels, depth=1, shortcut = True, expansion = 0.5, kersize = 5,depth_expansion = 1,small_kersize = 3,use_depthwise = True):
-        super(RepHDW, self).__init__()
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        depth=1,
+        shortcut=True,
+        expansion=0.5,
+        kersize=5,
+        depth_expansion=1,
+        small_kersize=3,
+        use_depthwise=True,
+    ):
+        super().__init__()
         c1 = int(out_channels * expansion) * 2
         c_ = int(out_channels * expansion)
         self.c_ = c_
         self.conv1 = Conv(in_channels, c1, 1, 1)
-        self.m = nn.ModuleList(DepthBottleneckUni(self.c_, self.c_, shortcut,kersize,depth_expansion,small_kersize,use_depthwise) for _ in range(depth))
-        self.conv2 = Conv(c_ * (depth+2), out_channels, 1, 1)
+        self.m = nn.ModuleList(
+            DepthBottleneckUni(self.c_, self.c_, shortcut, kersize, depth_expansion, small_kersize, use_depthwise)
+            for _ in range(depth)
+        )
+        self.conv2 = Conv(c_ * (depth + 2), out_channels, 1, 1)
 
-    def forward(self,x):
+    def forward(self, x):
         x = self.conv1(x)
         x_out = list(x.split((self.c_, self.c_), 1))
         for conv in self.m:
@@ -933,18 +1104,34 @@ class RepHDW(nn.Module):
             x_out.append(y)
         y_out = torch.cat(x_out, axis=1)
         y_out = self.conv2(y_out)
-        return  y_out
+        return y_out
+
+
 class CSPSDepthResELAN(nn.Module):
-    def __init__(self, in_channels, out_channels, depth=1, shortcut = True, expansion = 0.5, kersize = 5,depth_expansion = 1,small_kersize = 3,use_depthwise = True):
-        super(CSPSDepthResELAN, self).__init__()
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        depth=1,
+        shortcut=True,
+        expansion=0.5,
+        kersize=5,
+        depth_expansion=1,
+        small_kersize=3,
+        use_depthwise=True,
+    ):
+        super().__init__()
         c1 = int(out_channels * expansion) * 2
         c_ = int(out_channels * expansion)
         self.c_ = c_
         self.conv1 = Conv(in_channels, c1, 1, 1)
-        self.m = nn.ModuleList(SDepthBottleneck(self.c_, self.c_, shortcut,kersize,depth_expansion,small_kersize,use_depthwise) for _ in range(depth))
-        self.conv2 = Conv(c_ * (depth+2), out_channels, 1, 1)
+        self.m = nn.ModuleList(
+            SDepthBottleneck(self.c_, self.c_, shortcut, kersize, depth_expansion, small_kersize, use_depthwise)
+            for _ in range(depth)
+        )
+        self.conv2 = Conv(c_ * (depth + 2), out_channels, 1, 1)
 
-    def forward(self,x):
+    def forward(self, x):
         x = self.conv1(x)
         x_out = list(x.split((self.c_, self.c_), 1))
         for conv in self.m:
@@ -952,28 +1139,35 @@ class CSPSDepthResELAN(nn.Module):
             x_out.append(y)
         y_out = torch.cat(x_out, axis=1)
         y_out = self.conv2(y_out)
-        return  y_out
+        return y_out
+
 
 class SDepthBottleneck(nn.Module):
-    def __init__(self,
-                 in_channels,
-                 out_channels,
-                 shortcut=True,
-                 kersize = 5,
-                 expansion_depth = 1,
-                 small_kersize = 3,
-                 use_depthwise=True):
-        super(SDepthBottleneck, self).__init__()
-
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        shortcut=True,
+        kersize=5,
+        expansion_depth=1,
+        small_kersize=3,
+        use_depthwise=True,
+    ):
+        super().__init__()
 
         mid_channel = int(in_channels * expansion_depth)
         self.shortcut = shortcut
         self.conv1 = Conv(in_channels, mid_channel, 1)
-        self.conv2 = ReparamLargeKernelConv(in_channels=mid_channel, out_channels=mid_channel,
-                                            kernel_size=kersize, stride=1,groups=mid_channel,small_kernel=small_kersize)
+        self.conv2 = ReparamLargeKernelConv(
+            in_channels=mid_channel,
+            out_channels=mid_channel,
+            kernel_size=kersize,
+            stride=1,
+            groups=mid_channel,
+            small_kernel=small_kersize,
+        )
 
-        self.conv3 = Conv(mid_channel,out_channels,kernel_size = 1)
-
+        self.conv3 = Conv(mid_channel, out_channels, kernel_size=1)
 
     def forward(self, x):
         shortcut = x
@@ -986,18 +1180,39 @@ class SDepthBottleneck(nn.Module):
             return y + shortcut
         else:
             return y
+
+
 class SDepthMP(nn.Module):
-    def __init__(self, in_channels, out_channels, depth = 1, shortcut = True, kersize = 5, small_kersize = 3, depth_expansion = 2,  expension_w = 3, use_depthwise = True):
-        super(SDepthMP, self).__init__()
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        depth=1,
+        shortcut=True,
+        kersize=5,
+        small_kersize=3,
+        depth_expansion=2,
+        expension_w=3,
+        use_depthwise=True,
+    ):
+        super().__init__()
         self.in_channels = int(out_channels * expension_w / 2)
         self.mid_channel = int(out_channels / 2)
         self.in_conv = Conv(in_channels, self.in_channels, 1)
-        self.m1 = nn.ModuleList(SDepthBottleneck(self.mid_channel, self.mid_channel, shortcut,kersize,depth_expansion,small_kersize,use_depthwise) for _ in range(depth))
-        self.m2 = nn.ModuleList(Bottleneck2(self.mid_channel, self.mid_channel, shortcut,kersize,1,small_kersize,use_depthwise) for _ in range(depth))
+        self.m1 = nn.ModuleList(
+            SDepthBottleneck(
+                self.mid_channel, self.mid_channel, shortcut, kersize, depth_expansion, small_kersize, use_depthwise
+            )
+            for _ in range(depth)
+        )
+        self.m2 = nn.ModuleList(
+            Bottleneck2(self.mid_channel, self.mid_channel, shortcut, kersize, 1, small_kersize, use_depthwise)
+            for _ in range(depth)
+        )
         self.shortcut = shortcut
         self.conv2 = Conv(self.in_channels, out_channels, 1, 1)
 
-    def forward(self,x):
+    def forward(self, x):
         outs = []
         x = self.in_conv(x)
         x_out = list(x.split((self.mid_channel, self.mid_channel, self.mid_channel), 1))
@@ -1018,26 +1233,27 @@ class SDepthMP(nn.Module):
 
         y_out = torch.cat(outs, axis=1)
         y_out = self.conv2(y_out)
-        return  y_out
+        return y_out
+
 
 class Bottleneck2(nn.Module):
-    def __init__(self,
-                 in_channels,
-                 out_channels,
-                 shortcut=True,
-                 kersize = 5,
-                 expansion_depth = 1,
-                 small_kersize = 3,
-                 use_depthwise=True):
-        super(Bottleneck2, self).__init__()
-
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        shortcut=True,
+        kersize=5,
+        expansion_depth=1,
+        small_kersize=3,
+        use_depthwise=True,
+    ):
+        super().__init__()
 
         mid_channel = int(in_channels * expansion_depth)
         self.conv1 = Conv(in_channels, mid_channel, 3)
         self.conv2 = Conv(in_channels, mid_channel, 3)
 
         self.shortcut = shortcut
-
 
     def forward(self, x):
         y = self.conv1(x)
@@ -1046,9 +1262,11 @@ class Bottleneck2(nn.Module):
             return x + y
         else:
             return y
+
+
 class CSPRepResELAN(nn.Module):
-    def __init__(self, in_channels, out_channels, depth=1, shortcut=True,  expansion=0.5, Rep_and_Conv = False):
-        super(CSPRepResELAN, self).__init__()
+    def __init__(self, in_channels, out_channels, depth=1, shortcut=True, expansion=0.5, Rep_and_Conv=False):
+        super().__init__()
         c1 = int(out_channels * expansion) * 2
         c_ = int(out_channels * expansion)
         self.c_ = c_
@@ -1068,15 +1286,10 @@ class CSPRepResELAN(nn.Module):
 
 
 class RepBottleneck(nn.Module):
-    def __init__(self,
-                 in_channels,
-                 out_channels,
-                 shortcut=True,
-                 Rep_and_Conv=True):
-        super(RepBottleneck, self).__init__()
+    def __init__(self, in_channels, out_channels, shortcut=True, Rep_and_Conv=True):
+        super().__init__()
         self.shortcut = shortcut
         if Rep_and_Conv:
-
             self.conv1 = RepVGGBlock(in_channels, out_channels, 3, 1)
             self.conv2 = Conv(out_channels, out_channels, 3, 1)
         else:
@@ -1090,28 +1303,32 @@ class RepBottleneck(nn.Module):
             return x + y
         else:
             return y
-from torch import Tensor
-class Partial_conv3(nn.Module):
 
+
+from torch import Tensor
+
+
+class Partial_conv3(nn.Module):
     def __init__(self, dim, n_div, forward):
         super().__init__()
         self.dim_conv3 = dim // n_div
         self.dim_untouched = dim - self.dim_conv3
         self.partial_conv3 = nn.Conv2d(self.dim_conv3, self.dim_conv3, 3, 1, 1, bias=False)
 
-        if forward == 'slicing':
+        if forward == "slicing":
             self.forward = self.forward_slicing
-        elif forward == 'split_cat':
+        elif forward == "split_cat":
             self.forward = self.forward_split_cat
         else:
             raise NotImplementedError
 
     def forward_slicing(self, x: Tensor) -> Tensor:
         # only for inference
-        x = x.clone()   # !!! Keep the original input intact for the residual connection later
-        x[:, :self.dim_conv3, :, :] = self.partial_conv3(x[:, :self.dim_conv3, :, :])
+        x = x.clone()  # !!! Keep the original input intact for the residual connection later
+        x[:, : self.dim_conv3, :, :] = self.partial_conv3(x[:, : self.dim_conv3, :, :])
 
         return x
+
     def forward_split_cat(self, x: Tensor) -> Tensor:
 
         # for training/inference
@@ -1121,34 +1338,60 @@ class Partial_conv3(nn.Module):
 
         return x
 
-import os
-
 
 def get_conv2d(in_channels, out_channels, kernel_size, stride, padding, dilation, groups, bias):
-    return nn.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size, stride=stride,
-                         padding=padding, dilation=dilation, groups=groups, bias=bias)
-
+    return nn.Conv2d(
+        in_channels=in_channels,
+        out_channels=out_channels,
+        kernel_size=kernel_size,
+        stride=stride,
+        padding=padding,
+        dilation=dilation,
+        groups=groups,
+        bias=bias,
+    )
 
 
 def get_bn(channels):
     return nn.BatchNorm2d(channels)
 
+
 def conv_bn(in_channels, out_channels, kernel_size, stride, padding, groups, dilation=1):
     if padding is None:
         padding = kernel_size // 2
     result = nn.Sequential()
-    result.add_module('conv', get_conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size,
-                                         stride=stride, padding=padding, dilation=dilation, groups=groups, bias=False))
-    result.add_module('bn', get_bn(out_channels))
+    result.add_module(
+        "conv",
+        get_conv2d(
+            in_channels=in_channels,
+            out_channels=out_channels,
+            kernel_size=kernel_size,
+            stride=stride,
+            padding=padding,
+            dilation=dilation,
+            groups=groups,
+            bias=False,
+        ),
+    )
+    result.add_module("bn", get_bn(out_channels))
     return result
+
 
 def conv_bn_relu(in_channels, out_channels, kernel_size, stride, padding, groups, dilation=1):
     if padding is None:
         padding = kernel_size // 2
-    result = conv_bn(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size,
-                                         stride=stride, padding=padding, groups=groups, dilation=dilation)
-    result.add_module('nonlinear', nn.ReLU())
+    result = conv_bn(
+        in_channels=in_channels,
+        out_channels=out_channels,
+        kernel_size=kernel_size,
+        stride=stride,
+        padding=padding,
+        groups=groups,
+        dilation=dilation,
+    )
+    result.add_module("nonlinear", nn.ReLU())
     return result
+
 
 def fuse_bn(conv, bn):
     kernel = conv.weight
@@ -1174,12 +1417,10 @@ class GhostConv(nn.Module):
         y = self.cv1(x)
         return torch.cat((y, self.cv2(y)), 1)
 
+
 class ReparamLargeKernelConv(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size,
-                 stride, groups,
-                 small_kernel,
-                 small_kernel_merged=False):
-        super(ReparamLargeKernelConv, self).__init__()
+    def __init__(self, in_channels, out_channels, kernel_size, stride, groups, small_kernel, small_kernel_merged=False):
+        super().__init__()
         self.kernel_size = kernel_size
         self.small_kernel = small_kernel
         self.in_channels = in_channels
@@ -1188,15 +1429,39 @@ class ReparamLargeKernelConv(nn.Module):
         # We assume the conv does not change the feature map size, so padding = k//2. Otherwise, you may configure padding as you wish, and change the padding of small_conv accordingly.
         padding = kernel_size // 2
         if small_kernel_merged:
-            self.lkb_reparam = get_conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size,
-                                          stride=stride, padding=padding, dilation=1, groups=groups, bias=True)
+            self.lkb_reparam = get_conv2d(
+                in_channels=in_channels,
+                out_channels=out_channels,
+                kernel_size=kernel_size,
+                stride=stride,
+                padding=padding,
+                dilation=1,
+                groups=groups,
+                bias=True,
+            )
         else:
-            self.lkb_origin = conv_bn(in_channels, in_channels, kernel_size=kernel_size,
-                                      stride=stride, padding=padding, dilation=1, groups=groups)
+            self.lkb_origin = conv_bn(
+                in_channels,
+                in_channels,
+                kernel_size=kernel_size,
+                stride=stride,
+                padding=padding,
+                dilation=1,
+                groups=groups,
+            )
             if small_kernel is not None:
-                assert small_kernel <= kernel_size, 'The kernel size for re-param cannot be larger than the large kernel!'
-                self.small_conv = conv_bn(in_channels,in_channels, kernel_size=small_kernel,
-                                             stride=stride, padding=small_kernel//2, groups=groups, dilation=1)
+                assert small_kernel <= kernel_size, (
+                    "The kernel size for re-param cannot be larger than the large kernel!"
+                )
+                self.small_conv = conv_bn(
+                    in_channels,
+                    in_channels,
+                    kernel_size=small_kernel,
+                    stride=stride,
+                    padding=small_kernel // 2,
+                    groups=groups,
+                    dilation=1,
+                )
                 # self.one_conv = Conv(in_channels,out_channels,kernel_size = 1)
                 # self.rbr_identity = nn.BatchNorm2d(num_features=in_channels)
 
@@ -1206,11 +1471,11 @@ class ReparamLargeKernelConv(nn.Module):
         # else:
         #     id_out = 0
 
-        if hasattr(self, 'lkb_reparam'):
+        if hasattr(self, "lkb_reparam"):
             out = self.lkb_reparam(inputs)
         else:
             out = self.lkb_origin(inputs)
-            if hasattr(self, 'small_conv'):
+            if hasattr(self, "small_conv"):
                 out += self.small_conv(inputs)
                 # out = self.nonlinearity(out)
         return self.act(out)
@@ -1222,7 +1487,7 @@ class ReparamLargeKernelConv(nn.Module):
         #     bn_kernelid, bn_biasid = self._fuse_bn_tensor(self.rbr_identity)
         #     eq_k += bn_kernelid
         #     eq_b += bn_biasid
-        if hasattr(self, 'small_conv'):
+        if hasattr(self, "small_conv"):
             small_k, small_b = fuse_bn(self.small_conv.conv, self.small_conv.bn)
             eq_b += small_b
             #   add to the central part
@@ -1230,7 +1495,7 @@ class ReparamLargeKernelConv(nn.Module):
 
         return eq_k, eq_b
 
-    #融合bn层
+    # 融合bn层
     # def _fuse_bn_tensor(self, branch):
     #     if branch is None:
     #         return 0, 0
@@ -1253,36 +1518,52 @@ class ReparamLargeKernelConv(nn.Module):
 
     def merge_kernel(self):
         eq_k, eq_b = self.get_equivalent_kernel_bias()
-        self.lkb_reparam = get_conv2d(in_channels=self.lkb_origin.conv.in_channels,
-                                     out_channels=self.lkb_origin.conv.out_channels,
-                                     kernel_size=self.lkb_origin.conv.kernel_size, stride=self.lkb_origin.conv.stride,
-                                     padding=self.lkb_origin.conv.padding, dilation=self.lkb_origin.conv.dilation,
-                                     groups=self.lkb_origin.conv.groups, bias=True)
+        self.lkb_reparam = get_conv2d(
+            in_channels=self.lkb_origin.conv.in_channels,
+            out_channels=self.lkb_origin.conv.out_channels,
+            kernel_size=self.lkb_origin.conv.kernel_size,
+            stride=self.lkb_origin.conv.stride,
+            padding=self.lkb_origin.conv.padding,
+            dilation=self.lkb_origin.conv.dilation,
+            groups=self.lkb_origin.conv.groups,
+            bias=True,
+        )
         self.lkb_reparam.weight.data = eq_k
         self.lkb_reparam.bias.data = eq_b
-        self.__delattr__('lkb_origin')
-        if hasattr(self, 'small_conv'):
-            self.__delattr__('small_conv')
+        self.__delattr__("lkb_origin")
+        if hasattr(self, "small_conv"):
+            self.__delattr__("small_conv")
 
 
 class Feature_Pool(nn.Module):
     def __init__(self, dim, ratio=2):
-        super(Feature_Pool, self).__init__()
+        super().__init__()
         self.gap_pool = nn.AdaptiveAvgPool2d(1)
         self.down = nn.Linear(dim, dim * ratio)
         self.act = nn.GELU()
         self.up = nn.Linear(dim * ratio, dim)
+
     def forward(self, x):
         b, c, _, _ = x.size()
-        y = self.up(self.act(self.down(self.gap_pool(x).permute(0,2,3,1)))).permute(0,3,1,2).view(b,c)
+        y = self.up(self.act(self.down(self.gap_pool(x).permute(0, 2, 3, 1)))).permute(0, 3, 1, 2).view(b, c)
         return y
 
 
 class RepELANMSv2(nn.Module):
-    def __init__(self, in_channels, out_channels, width=3, depth=1, depth_expansion=2, kersize=5, shortcut=True,
-                 expansion=0.5,
-                 small_kersize=3, use_depthwise=True):
-        super(RepELANMSv2, self).__init__()
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        width=3,
+        depth=1,
+        depth_expansion=2,
+        kersize=5,
+        shortcut=True,
+        expansion=0.5,
+        small_kersize=3,
+        use_depthwise=True,
+    ):
+        super().__init__()
         self.width = width
         self.depth = depth
         c1 = int(out_channels * expansion) * width
@@ -1291,17 +1572,21 @@ class RepELANMSv2(nn.Module):
         self.conv1 = Conv(in_channels, c1, 1, 1)
         self.RepElanMSBlock = nn.ModuleList()
         for _ in range(width - 1):
-            DepthBlock = nn.ModuleList([
-                DepthBottleneckUni(self.c_, self.c_, shortcut, kersize, depth_expansion, small_kersize, use_depthwise)
-                for _ in range(depth)
-            ])
+            DepthBlock = nn.ModuleList(
+                [
+                    DepthBottleneckUni(
+                        self.c_, self.c_, shortcut, kersize, depth_expansion, small_kersize, use_depthwise
+                    )
+                    for _ in range(depth)
+                ]
+            )
             self.RepElanMSBlock.append(DepthBlock)
 
         self.conv2 = Conv(c_ * 1 + c_ * (width - 1) * depth, out_channels, 1, 1)
 
     def forward(self, x):
         x = self.conv1(x)
-        x_out = [x[:, i * self.c_:(i + 1) * self.c_] for i in range(self.width)]
+        x_out = [x[:, i * self.c_ : (i + 1) * self.c_] for i in range(self.width)]
         x_out[1] = x_out[1] + x_out[0]
         cascade = []
         elan = [x_out[0]]
@@ -1322,13 +1607,16 @@ class RepELANMSv2(nn.Module):
 
 
 # From PyTorch internals
-from itertools import repeat
 import collections.abc
+from itertools import repeat
+
+
 def _ntuple(n):
     def parse(x):
         if isinstance(x, collections.abc.Iterable) and not isinstance(x, str):
             return tuple(x)
         return tuple(repeat(x, n))
+
     return parse
 
 
@@ -1337,19 +1625,32 @@ to_2tuple = _ntuple(2)
 to_3tuple = _ntuple(3)
 to_4tuple = _ntuple(4)
 to_ntuple = _ntuple
-def get_conv2d_uni(in_channels, out_channels, kernel_size, stride, padding, dilation, groups, bias,
-               attempt_use_lk_impl=True):
+
+
+def get_conv2d_uni(
+    in_channels, out_channels, kernel_size, stride, padding, dilation, groups, bias, attempt_use_lk_impl=True
+):
     kernel_size = to_2tuple(kernel_size)
     if padding is None:
         padding = (kernel_size[0] // 2, kernel_size[1] // 2)
     else:
         padding = to_2tuple(padding)
-    need_large_impl = kernel_size[0] == kernel_size[1] and kernel_size[0] > 5 and padding == (kernel_size[0] // 2, kernel_size[1] // 2)
+    kernel_size[0] == kernel_size[1] and kernel_size[0] > 5 and padding == (kernel_size[0] // 2, kernel_size[1] // 2)
 
-    return nn.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size, stride=stride,
-                     padding=padding, dilation=dilation, groups=groups, bias=bias)
+    return nn.Conv2d(
+        in_channels=in_channels,
+        out_channels=out_channels,
+        kernel_size=kernel_size,
+        stride=stride,
+        padding=padding,
+        dilation=dilation,
+        groups=groups,
+        bias=bias,
+    )
+
+
 def convert_dilated_to_nondilated(kernel, dilate_rate):
-    identity_kernel = torch.ones((1, 1, 1, 1), dtype=kernel.dtype, device =kernel.device )
+    identity_kernel = torch.ones((1, 1, 1, 1), dtype=kernel.dtype, device=kernel.device)
     if kernel.size(1) == 1:
         #   This is a DW kernel
         dilated = F.conv_transpose2d(kernel, identity_kernel, stride=dilate_rate)
@@ -1358,9 +1659,10 @@ def convert_dilated_to_nondilated(kernel, dilate_rate):
         #   This is a dense or group-wise (but not DW) kernel
         slices = []
         for i in range(kernel.size(1)):
-            dilated = F.conv_transpose2d(kernel[:,i:i+1,:,:], identity_kernel, stride=dilate_rate)
+            dilated = F.conv_transpose2d(kernel[:, i : i + 1, :, :], identity_kernel, stride=dilate_rate)
             slices.append(dilated)
         return torch.cat(slices, dim=1)
+
 
 def merge_dilated_into_large_kernel(large_kernel, dilated_kernel, dilated_r):
     large_k = large_kernel.size(2)
@@ -1370,16 +1672,25 @@ def merge_dilated_into_large_kernel(large_kernel, dilated_kernel, dilated_r):
     rows_to_pad = large_k // 2 - equivalent_kernel_size // 2
     merged_kernel = large_kernel + F.pad(equivalent_kernel, [rows_to_pad] * 4)
     return merged_kernel
+
+
 class DilatedReparamBlock(nn.Module):
+    """Dilated Reparam Block proposed in UniRepLKNet (https://github.com/AILab-CVC/UniRepLKNet) We assume the inputs to
+    this block are (N, C, H, W).
     """
-    Dilated Reparam Block proposed in UniRepLKNet (https://github.com/AILab-CVC/UniRepLKNet)
-    We assume the inputs to this block are (N, C, H, W)
-    """
+
     def __init__(self, channels, kernel_size, deploy, use_sync_bn=False, attempt_use_lk_impl=True):
         super().__init__()
-        self.lk_origin = get_conv2d_uni(channels, channels, kernel_size, stride=1,
-                                    padding=kernel_size//2, dilation=1, groups=channels, bias=deploy,
-                                    )
+        self.lk_origin = get_conv2d_uni(
+            channels,
+            channels,
+            kernel_size,
+            stride=1,
+            padding=kernel_size // 2,
+            dilation=1,
+            groups=channels,
+            bias=deploy,
+        )
         self.attempt_use_lk_impl = attempt_use_lk_impl
 
         #   Default settings. We did not tune them carefully. Different settings may work better.
@@ -1432,75 +1743,93 @@ class DilatedReparamBlock(nn.Module):
             self.kernel_sizes = [3, 1]
             self.dilates = [1, 1]
 
-
         else:
-            raise ValueError('Dilated Reparam Block requires kernel_size >= 5')
+            raise ValueError("Dilated Reparam Block requires kernel_size >= 5")
 
         if not deploy:
             self.origin_bn = get_bn(channels)
             for k, r in zip(self.kernel_sizes, self.dilates):
-                self.__setattr__('dil_conv_k{}_{}'.format(k, r),
-                                 nn.Conv2d(in_channels=channels, out_channels=channels, kernel_size=k, stride=1,
-                                           padding=(r * (k - 1) + 1) // 2, dilation=r, groups=channels,
-                                           bias=False))
-                self.__setattr__('dil_bn_k{}_{}'.format(k, r), get_bn(channels))
+                self.__setattr__(
+                    f"dil_conv_k{k}_{r}",
+                    nn.Conv2d(
+                        in_channels=channels,
+                        out_channels=channels,
+                        kernel_size=k,
+                        stride=1,
+                        padding=(r * (k - 1) + 1) // 2,
+                        dilation=r,
+                        groups=channels,
+                        bias=False,
+                    ),
+                )
+                self.__setattr__(f"dil_bn_k{k}_{r}", get_bn(channels))
 
     def forward(self, x):
-        if not hasattr(self, 'origin_bn'):      # deploy mode
+        if not hasattr(self, "origin_bn"):  # deploy mode
             return self.lk_origin(x)
         out = self.origin_bn(self.lk_origin(x))
         for k, r in zip(self.kernel_sizes, self.dilates):
-            conv = self.__getattr__('dil_conv_k{}_{}'.format(k, r))
-            bn = self.__getattr__('dil_bn_k{}_{}'.format(k, r))
+            conv = self.__getattr__(f"dil_conv_k{k}_{r}")
+            bn = self.__getattr__(f"dil_bn_k{k}_{r}")
             out = out + bn(conv(x))
         return out
 
     def merge_dilated_branches(self):
-        if hasattr(self, 'origin_bn'):
+        if hasattr(self, "origin_bn"):
             origin_k, origin_b = fuse_bn(self.lk_origin, self.origin_bn)
             for k, r in zip(self.kernel_sizes, self.dilates):
-                conv = self.__getattr__('dil_conv_k{}_{}'.format(k, r))
-                bn = self.__getattr__('dil_bn_k{}_{}'.format(k, r))
+                conv = self.__getattr__(f"dil_conv_k{k}_{r}")
+                bn = self.__getattr__(f"dil_bn_k{k}_{r}")
                 branch_k, branch_b = fuse_bn(conv, bn)
                 origin_k = merge_dilated_into_large_kernel(origin_k, branch_k, r)
                 origin_b += branch_b
-            merged_conv = get_conv2d_uni(origin_k.size(0), origin_k.size(0), origin_k.size(2), stride=1,
-                                    padding=origin_k.size(2)//2, dilation=1, groups=origin_k.size(0), bias=True,
-                                    attempt_use_lk_impl=self.attempt_use_lk_impl)
+            merged_conv = get_conv2d_uni(
+                origin_k.size(0),
+                origin_k.size(0),
+                origin_k.size(2),
+                stride=1,
+                padding=origin_k.size(2) // 2,
+                dilation=1,
+                groups=origin_k.size(0),
+                bias=True,
+                attempt_use_lk_impl=self.attempt_use_lk_impl,
+            )
             merged_conv.weight.data = origin_k
             merged_conv.bias.data = origin_b
             self.lk_origin = merged_conv
-            self.__delattr__('origin_bn')
+            self.__delattr__("origin_bn")
             for k, r in zip(self.kernel_sizes, self.dilates):
-                self.__delattr__('dil_conv_k{}_{}'.format(k, r))
-                self.__delattr__('dil_bn_k{}_{}'.format(k, r))
+                self.__delattr__(f"dil_conv_k{k}_{r}")
+                self.__delattr__(f"dil_bn_k{k}_{r}")
+
 
 class UniRepLKNetBlock(nn.Module):
-
-    def __init__(self,
-                 dim,
-                 kernel_size,
-                 deploy=False,
-                 attempt_use_lk_impl=True):
+    def __init__(self, dim, kernel_size, deploy=False, attempt_use_lk_impl=True):
         super().__init__()
         if deploy:
-            print('------------------------------- Note: deploy mode')
+            print("------------------------------- Note: deploy mode")
         if kernel_size == 0:
             self.dwconv = nn.Identity()
         elif kernel_size >= 3:
-            self.dwconv = DilatedReparamBlock(dim, kernel_size, deploy=deploy,
-                                              attempt_use_lk_impl=attempt_use_lk_impl)
+            self.dwconv = DilatedReparamBlock(dim, kernel_size, deploy=deploy, attempt_use_lk_impl=attempt_use_lk_impl)
         else:
             assert kernel_size in [3]
-            self.dwconv = get_conv2d_uni(dim, dim, kernel_size=kernel_size, stride=1, padding=kernel_size // 2,
-                                     dilation=1, groups=dim, bias=deploy,
-                                     attempt_use_lk_impl=attempt_use_lk_impl)
+            self.dwconv = get_conv2d_uni(
+                dim,
+                dim,
+                kernel_size=kernel_size,
+                stride=1,
+                padding=kernel_size // 2,
+                dilation=1,
+                groups=dim,
+                bias=deploy,
+                attempt_use_lk_impl=attempt_use_lk_impl,
+            )
 
         if deploy or kernel_size == 0:
             self.norm = nn.Identity()
         else:
             self.norm = get_bn(dim)
-
 
     def forward(self, inputs):
 
@@ -1508,17 +1837,24 @@ class UniRepLKNetBlock(nn.Module):
         return out
 
     def reparameterize(self):
-        if hasattr(self.dwconv, 'merge_dilated_branches'):
+        if hasattr(self.dwconv, "merge_dilated_branches"):
             self.dwconv.merge_dilated_branches()
-        if hasattr(self.norm, 'running_var'):
+        if hasattr(self.norm, "running_var"):
             std = (self.norm.running_var + self.norm.eps).sqrt()
-            if hasattr(self.dwconv, 'lk_origin'):
+            if hasattr(self.dwconv, "lk_origin"):
                 self.dwconv.lk_origin.weight.data *= (self.norm.weight / std).view(-1, 1, 1, 1)
-                self.dwconv.lk_origin.bias.data = self.norm.bias + (
-                            self.dwconv.lk_origin.bias - self.norm.running_mean) * self.norm.weight / std
+                self.dwconv.lk_origin.bias.data = (
+                    self.norm.bias + (self.dwconv.lk_origin.bias - self.norm.running_mean) * self.norm.weight / std
+                )
             else:
-                conv = nn.Conv2d(self.dwconv.in_channels, self.dwconv.out_channels, self.dwconv.kernel_size,
-                                 self.dwconv.padding, self.dwconv.groups, bias=True)
+                conv = nn.Conv2d(
+                    self.dwconv.in_channels,
+                    self.dwconv.out_channels,
+                    self.dwconv.kernel_size,
+                    self.dwconv.padding,
+                    self.dwconv.groups,
+                    bias=True,
+                )
                 conv.weight.data = self.dwconv.weight * (self.norm.weight / std).view(-1, 1, 1, 1)
                 conv.bias.data = self.norm.bias - self.norm.running_mean * self.norm.weight / std
                 self.dwconv = conv
