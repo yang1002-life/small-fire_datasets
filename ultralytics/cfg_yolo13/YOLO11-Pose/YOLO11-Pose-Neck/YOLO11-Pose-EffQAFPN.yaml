@@ -37,14 +37,14 @@ head:
   - [-1, 1, SimConv, [128, 1, 1]]
   - [-1, 1, Transpose, [128]]
   - [[-1, 4], 1, Concat, [1]]
-  - [-1, 12, QARepNeXt, [128]]   #out
+  - [-1, 12, QARepNeXt, [128]] #out
 
   - [-1, 1, SimConv, [128, 3, 2]]
-  - [[-1, 15], 1, Concat, [1]]  # cat head P4
-  - [-1, 13, QARepNeXt, [256]]  # 20 (P4/16-medium)
+  - [[-1, 15], 1, Concat, [1]] # cat head P4
+  - [-1, 13, QARepNeXt, [256]] # 20 (P4/16-medium)
 
   - [-1, 1, SimConv, [256, 3, 2]]
-  - [[-1, 11], 1, Concat, [1]]  # cat head P5
+  - [[-1, 11], 1, Concat, [1]] # cat head P5
   - [-1, 12, QARepNeXt, [512]]
 
   - [[18, 21, 24], 1, Pose, [nc, kpt_shape]] # Detect(P3, P4, P5)

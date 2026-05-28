@@ -3,7 +3,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 from einops import rearrange
 
-
 # 论文题目：CATANet: Efficient Content-Aware Token Aggregation for Lightweight Image Super-Resolution CVPR2025
 # 论文链接：https://arxiv.org/pdf/2503.06896
 # 官方github：https://github.com/EquationWalker/CATANet/tree/main
@@ -11,18 +10,10 @@ from einops import rearrange
 
 
 def patch_divide(x, step, ps):
+    """将输入图像裁剪成多个小块。 参数: x (Tensor): 输入特征图，形状为 (b, c, h, w)，b 是批量大小，c 是通道数，h 是高度，w 是宽度。 step (int): 裁剪步长。 ps (int):
+    小块的尺寸。 返回: crop_x (Tensor): 裁剪后的小块。 nh (int): 水平方向上的小块数量。 nw (int): 垂直方向上的小块数量。.
     """
-    将输入图像裁剪成多个小块。
-    参数:
-        x (Tensor): 输入特征图，形状为 (b, c, h, w)，b 是批量大小，c 是通道数，h 是高度，w 是宽度。
-        step (int): 裁剪步长。
-        ps (int): 小块的尺寸。
-    返回:
-        crop_x (Tensor): 裁剪后的小块。
-        nh (int): 水平方向上的小块数量。
-        nw (int): 垂直方向上的小块数量。
-    """
-    b, c, h, w = x.size()
+    _b, _c, h, w = x.size()
     # 如果输入图像的高度和宽度等于小块尺寸，将步长设置为小块尺寸
     if h == ps and w == ps:
         step = ps
@@ -56,17 +47,10 @@ def patch_divide(x, step, ps):
 
 
 def patch_reverse(crop_x, x, step, ps):
+    """将裁剪后的小块还原成图像。 参数: crop_x (Tensor): 裁剪后的小块。 x (Tensor): 原始特征图，形状为 (b, c, h, w)。 step (int): 裁剪步长。 ps (int): 小块的尺寸。
+    返回: output (Tensor): 还原后的图像。.
     """
-    将裁剪后的小块还原成图像。
-    参数:
-        crop_x (Tensor): 裁剪后的小块。
-        x (Tensor): 原始特征图，形状为 (b, c, h, w)。
-        step (int): 裁剪步长。
-        ps (int): 小块的尺寸。
-    返回:
-        ouput (Tensor): 还原后的图像。
-    """
-    b, c, h, w = x.size()
+    _b, _c, h, w = x.size()
     # 初始化输出张量
     output = torch.zeros_like(x)
     index = 0
@@ -107,11 +91,7 @@ def patch_reverse(crop_x, x, step, ps):
 
 
 class PreNorm(nn.Module):
-    """
-    归一化层。
-    参数:
-        dim (int): 基础通道数。
-        fn (Module): 归一化后的模块。
+    """归一化层。 参数: dim (int): 基础通道数。 fn (Module): 归一化后的模块。.
     """
 
     def __init__(self, dim, fn):
@@ -127,12 +107,20 @@ class PreNorm(nn.Module):
 
 class dwconv(nn.Module):
     def __init__(self, hidden_features, kernel_size=5):
-        super(dwconv, self).__init__()
+        super().__init__()
         # 定义深度可分离卷积层
         self.depthwise_conv = nn.Sequential(
-            nn.Conv2d(hidden_features, hidden_features, kernel_size=kernel_size, stride=1,
-                      padding=(kernel_size - 1) // 2, dilation=1,
-                      groups=hidden_features), nn.GELU())
+            nn.Conv2d(
+                hidden_features,
+                hidden_features,
+                kernel_size=kernel_size,
+                stride=1,
+                padding=(kernel_size - 1) // 2,
+                dilation=1,
+                groups=hidden_features,
+            ),
+            nn.GELU(),
+        )
         self.hidden_features = hidden_features
 
     def forward(self, x, x_size):
@@ -172,12 +160,7 @@ class ConvFFN(nn.Module):
 
 
 class Attention(nn.Module):
-    """
-    注意力模块。
-    参数:
-        dim (int): 基础通道数。
-        heads (int): 注意力头的数量。
-        qk_dim (int): 查询和键的通道数。
+    """注意力模块。 参数: dim (int): 基础通道数。 heads (int): 注意力头的数量。 qk_dim (int): 查询和键的通道数。.
     """
 
     def __init__(self, dim, heads, qk_dim):
@@ -187,7 +170,7 @@ class Attention(nn.Module):
         self.dim = dim
         self.qk_dim = qk_dim
         # 缩放因子
-        self.scale = qk_dim ** -0.5
+        self.scale = qk_dim**-0.5
 
         # 定义查询、键和值的线性层
         self.to_q = nn.Linear(dim, qk_dim, bias=False)
@@ -201,60 +184,52 @@ class Attention(nn.Module):
         q, k, v = self.to_q(x), self.to_k(x), self.to_v(x)
 
         # 调整查询、键和值的维度
-        q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h=self.heads), (q, k, v))
+        q, k, v = map(lambda t: rearrange(t, "b n (h d) -> b h n d", h=self.heads), (q, k, v))
 
         # 计算注意力输出
         out = F.scaled_dot_product_attention(q, k, v)
         # 调整输出的维度
-        out = rearrange(out, 'b h n d -> b n (h d)')
+        out = rearrange(out, "b h n d -> b n (h d)")
         # 通过投影层
         return self.proj(out)
 
 
 class LRSA(nn.Module):
-    """
-    注意力模块。
-    参数:
-        dim (int): 基础通道数。
-        num (int): 块的数量。
-        qk_dim (int): 注意力中查询和键的通道数。
-        mlp_dim (int): MLP 中隐藏层的通道数。
-        heads (int): 注意力头的数量。
+    """注意力模块。 参数: dim (int): 基础通道数。 num (int): 块的数量。 qk_dim (int): 注意力中查询和键的通道数。 mlp_dim (int): MLP 中隐藏层的通道数。 heads
+    (int): 注意力头的数量。.
     """
 
     def __init__(self, dim, qk_dim=32, heads=1):
         super().__init__()
 
         # 定义模块列表
-        mlp_dim = 2*dim
-        self.layer = nn.ModuleList([
-            PreNorm(dim, Attention(dim, heads, qk_dim)),
-            PreNorm(dim, ConvFFN(dim, mlp_dim))])
+        mlp_dim = 2 * dim
+        self.layer = nn.ModuleList([PreNorm(dim, Attention(dim, heads, qk_dim)), PreNorm(dim, ConvFFN(dim, mlp_dim))])
 
     def forward(self, x):
-        ps=8
+        ps = 8
         step = ps - 2
         # 将输入图像裁剪成小块
-        crop_x, nh, nw = patch_divide(x, step, ps)  # (b, n, c, ps, ps)
-        b, n, c, ph, pw = crop_x.shape
+        crop_x, _nh, _nw = patch_divide(x, step, ps)  # (b, n, c, ps, ps)
+        _b, n, _c, _ph, pw = crop_x.shape
         # 调整小块的维度
-        crop_x = rearrange(crop_x, 'b n c h w -> (b n) (h w) c')
+        crop_x = rearrange(crop_x, "b n c h w -> (b n) (h w) c")
 
         attn, ff = self.layer
         # 通过注意力模块并加上残差连接
         crop_x = attn(crop_x) + crop_x
         # 调整小块的维度
-        crop_x = rearrange(crop_x, '(b n) (h w) c  -> b n c h w', n=n, w=pw)
+        crop_x = rearrange(crop_x, "(b n) (h w) c  -> b n c h w", n=n, w=pw)
 
         # 将小块还原成图像
         x = patch_reverse(crop_x, x, step, ps)
         _, _, h, w = x.shape
         # 调整图像的维度
-        x = rearrange(x, 'b c h w-> b (h w) c')
+        x = rearrange(x, "b c h w-> b (h w) c")
         # 通过 MLP 模块并加上残差连接
         x = ff(x, x_size=(h, w)) + x
         # 调整图像的维度
-        x = rearrange(x, 'b (h w) c->b c h w', h=h)
+        x = rearrange(x, "b (h w) c->b c h w", h=h)
 
         return x
 
@@ -292,8 +267,7 @@ class Conv(nn.Module):
 
 
 class PSABloc_LRSA(nn.Module):
-    """
-    PSABlock class implementing a Position-Sensitive Attention block for neural networks.
+    """PSABlock class implementing a Position-Sensitive Attention block for neural networks.
 
     This class encapsulates the functionality for applying multi-head attention and feed-forward neural network layers
     with optional shortcut connections.
@@ -329,8 +303,7 @@ class PSABloc_LRSA(nn.Module):
 
 
 class C2PSA_LRSA(nn.Module):
-    """
-    C2PSA module with attention mechanism for enhanced feature extraction and processing.
+    """C2PSA module with attention mechanism for enhanced feature extraction and processing.
 
     This module implements a convolutional block with attention mechanisms to enhance feature extraction and processing
     capabilities. It includes a series of PSABlock modules for self-attention and feed-forward operations.
@@ -344,13 +317,13 @@ class C2PSA_LRSA(nn.Module):
     Methods:
         forward: Performs a forward pass through the C2PSA module, applying attention and feed-forward operations.
 
-    Notes:
-        This module essentially is the same as PSA module, but refactored to allow stacking more PSABlock modules.
-
     Examples:
         >>> c2psa = C2PSA(c1=256, c2=256, n=3, e=0.5)
         >>> input_tensor = torch.randn(1, 256, 64, 64)
         >>> output_tensor = c2psa(input_tensor)
+
+    Notes:
+        This module essentially is the same as PSA module, but refactored to allow stacking more PSABlock modules.
     """
 
     def __init__(self, c1, c2, n=1, e=0.5):
@@ -369,9 +342,6 @@ class C2PSA_LRSA(nn.Module):
         a, b = self.cv1(x).split((self.c, self.c), dim=1)
         b = self.m(b)
         return self.cv2(torch.cat((a, b), 1))
-
-
-
 
 
 if __name__ == "__main__":

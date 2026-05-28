@@ -35,18 +35,18 @@ head:
   - [-1, 1, SimConv, [128, 1, 1]]
   - [-1, 1, Transpose, [128]]
   - [[-1, 4], 1, Concat, [1]]
-  - [-1, 12, RepBlock, [128]]   #out
+  - [-1, 12, RepBlock, [128]] #out
 
   - [-1, 1, SimConv, [128, 3, 2]]
-  - [[-1, 14], 1, Concat, [1]]  # cat head P4
-  - [-1, 12, RepBlock, [256]]  # 20 (P4/16-medium)
+  - [[-1, 14], 1, Concat, [1]] # cat head P4
+  - [-1, 12, RepBlock, [256]] # 20 (P4/16-medium)
 
   - [-1, 1, SimConv, [256, 3, 2]]
-  - [[-1, 10], 1, Concat, [1]]  # cat head P5
+  - [[-1, 10], 1, Concat, [1]] # cat head P5
   - [-1, 12, RepBlock, [512]]
 
-  - [[17, 20, 23], 1, Detect, [nc]]  # Detect(P3, P4, P5)
+  - [[17, 20, 23], 1, Detect, [nc]] # Detect(P3, P4, P5)
 
 # 检测头部分
-Head: 
+Head:
   - [[24], 1, LiteShiftHead, [nc]]

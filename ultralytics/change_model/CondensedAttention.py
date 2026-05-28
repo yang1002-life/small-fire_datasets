@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+
 #
 # 论文题目：Comprehensive-and-Delicate-An-Efficient-Transformer-for-Image-Restoration
 # 论文链接：https://pengxi.me/wp-content/uploads/2023/04/Comprehensive-and-Delicate-An-Efficient-Transformer-for-Image-Restoration.pdf
@@ -10,7 +11,7 @@ import torch.nn.functional as F
 # --------------------------- 通道注意力模块 ---------------------------#
 class ChannelAttention(nn.Module):
     def __init__(self, embed_dim, num_chans, expan_att_chans):
-        super(ChannelAttention, self).__init__()
+        super().__init__()
         self.expan_att_chans = expan_att_chans
         self.num_heads = int(num_chans * expan_att_chans)
         self.t = nn.Parameter(torch.ones(1, self.num_heads, 1, 1))
@@ -20,8 +21,9 @@ class ChannelAttention(nn.Module):
     def forward(self, x):
         B, C, H, W = x.size()
         # 计算Q、K、V
-        q, k, v = self.group_qkv(x).view(B, C, self.expan_att_chans * 3, H, W).transpose(1, 2).contiguous().chunk(3,
-                                                                                                                  dim=1)
+        q, k, v = (
+            self.group_qkv(x).view(B, C, self.expan_att_chans * 3, H, W).transpose(1, 2).contiguous().chunk(3, dim=1)
+        )
         C_exp = self.expan_att_chans * C
 
         # 变换形状以进行自注意力计算
@@ -42,7 +44,7 @@ class ChannelAttention(nn.Module):
 # --------------------------- 空间注意力模块 ---------------------------#
 class SpatialAttention(nn.Module):
     def __init__(self, embed_dim, num_chans, expan_att_chans):
-        super(SpatialAttention, self).__init__()
+        super().__init__()
         self.expan_att_chans = expan_att_chans
         self.num_heads = int(num_chans * expan_att_chans)
         self.t = nn.Parameter(torch.ones(1, self.num_heads, 1, 1))
@@ -52,8 +54,9 @@ class SpatialAttention(nn.Module):
     def forward(self, x):
         B, C, H, W = x.size()
         # 计算Q、K、V
-        q, k, v = self.group_qkv(x).view(B, C, self.expan_att_chans * 3, H, W).transpose(1, 2).contiguous().chunk(3,
-                                                                                                                  dim=1)
+        q, k, v = (
+            self.group_qkv(x).view(B, C, self.expan_att_chans * 3, H, W).transpose(1, 2).contiguous().chunk(3, dim=1)
+        )
         C_exp = self.expan_att_chans * C
 
         # 变换形状以进行自注意力计算
@@ -76,11 +79,11 @@ class SpatialAttention(nn.Module):
 # --------------------- Condensed Attention Neural Block ---------------------#
 class CondensedAttentionNeuralBlock(nn.Module):
     def __init__(self, embed_dim, squeezes=(4, 2), shuffle=2, expan_att_chans=2):
-        super(CondensedAttentionNeuralBlock, self).__init__()
+        super().__init__()
         self.embed_dim = embed_dim
 
         sque_ch_dim = embed_dim // squeezes[0]  # 通道维度压缩
-        shuf_sp_dim = int(sque_ch_dim * (shuffle ** 2))  # 空间维度变换
+        shuf_sp_dim = int(sque_ch_dim * (shuffle**2))  # 空间维度变换
         sque_sp_dim = shuf_sp_dim // squeezes[1]
 
         self.sque_ch_dim = sque_ch_dim
@@ -91,7 +94,7 @@ class CondensedAttentionNeuralBlock(nn.Module):
         # 先压缩通道，再调整空间
         self.ch_sp_squeeze = nn.Sequential(
             nn.Conv2d(embed_dim, sque_ch_dim, 1),
-            nn.Conv2d(sque_ch_dim, sque_sp_dim, shuffle, shuffle, groups=sque_ch_dim)
+            nn.Conv2d(sque_ch_dim, sque_sp_dim, shuffle, shuffle, groups=sque_ch_dim),
         )
 
         self.channel_attention = ChannelAttention(sque_sp_dim, sque_ch_dim, expan_att_chans)
@@ -101,22 +104,21 @@ class CondensedAttentionNeuralBlock(nn.Module):
         self.sp_ch_unsqueeze = nn.Sequential(
             nn.Conv2d(sque_sp_dim, shuf_sp_dim, 1, groups=sque_ch_dim),
             nn.PixelShuffle(shuffle),
-            nn.Conv2d(sque_ch_dim, embed_dim, 1)
+            nn.Conv2d(sque_ch_dim, embed_dim, 1),
         )
 
     def forward(self, x):
-        B, C, H, W = x.size()
+        _B, _C, H, W = x.size()
 
         # 直接判断H,W是否为单数
         pad_h = 1 if H % 2 == 1 else 0
         pad_w = 1 if W % 2 == 1 else 0
 
         # 执行填充
-        x_padded = F.pad(x, (0, pad_w, pad_h, 0), mode='constant', value=0)
-        H_padded, W_padded = H + pad_h, W + pad_w
+        x_padded = F.pad(x, (0, pad_w, pad_h, 0), mode="constant", value=0)
+        _H_padded, _W_padded = H + pad_h, W + pad_w
 
         x = self.ch_sp_squeeze(x_padded)
-
 
         # 重新排列通道
         group_num = self.sque_ch_dim
@@ -131,7 +133,6 @@ class CondensedAttentionNeuralBlock(nn.Module):
         x = self.spatial_attention(x)
         x = self.sp_ch_unsqueeze(x)
         return x[:, :, :H, :W]
-
 
 
 def autopad(k, p=None, d=1):  # kernel, padding, dilation
@@ -167,8 +168,7 @@ class Conv(nn.Module):
 
 
 class PSABloc_CAttention(nn.Module):
-    """
-    PSABlock class implementing a Position-Sensitive Attention block for neural networks.
+    """PSABlock class implementing a Position-Sensitive Attention block for neural networks.
 
     This class encapsulates the functionality for applying multi-head attention and feed-forward neural network layers
     with optional shortcut connections.
@@ -204,8 +204,7 @@ class PSABloc_CAttention(nn.Module):
 
 
 class C2PSA_CAttention(nn.Module):
-    """
-    C2PSA module with attention mechanism for enhanced feature extraction and processing.
+    """C2PSA module with attention mechanism for enhanced feature extraction and processing.
 
     This module implements a convolutional block with attention mechanisms to enhance feature extraction and processing
     capabilities. It includes a series of PSABlock modules for self-attention and feed-forward operations.
@@ -219,13 +218,13 @@ class C2PSA_CAttention(nn.Module):
     Methods:
         forward: Performs a forward pass through the C2PSA module, applying attention and feed-forward operations.
 
-    Notes:
-        This module essentially is the same as PSA module, but refactored to allow stacking more PSABlock modules.
-
     Examples:
         >>> c2psa = C2PSA(c1=256, c2=256, n=3, e=0.5)
         >>> input_tensor = torch.randn(1, 256, 64, 64)
         >>> output_tensor = c2psa(input_tensor)
+
+    Notes:
+        This module essentially is the same as PSA module, but refactored to allow stacking more PSABlock modules.
     """
 
     def __init__(self, c1, c2, n=1, e=0.5):
@@ -244,6 +243,7 @@ class C2PSA_CAttention(nn.Module):
         a, b = self.cv1(x).split((self.c, self.c), dim=1)
         b = self.m(b)
         return self.cv2(torch.cat((a, b), 1))
+
 
 # --------------------------- 主函数测试 ---------------------------#
 if __name__ == "__main__":

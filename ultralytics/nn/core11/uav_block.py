@@ -1,17 +1,18 @@
 # Ultralytics YOLO 🚀, AGPL-3.0 license
 """Block modules."""
 
+from collections import OrderedDict
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from collections import OrderedDict
 
 from ultralytics.nn.modules.conv import Conv, DWConv, GhostConv, LightConv, RepConv
 from ultralytics.nn.modules.transformer import TransformerBlock
 
+
 class DFL(nn.Module):
-    """
-    Integral module of Distribution Focal Loss (DFL).
+    """Integral module of Distribution Focal Loss (DFL).
 
     Proposed in Generalized Focal Loss https://ieeexplore.ieee.org/document/9792391
     """
@@ -26,7 +27,7 @@ class DFL(nn.Module):
 
     def forward(self, x):
         """Applies a transformer layer on input tensor 'x' and returns a tensor."""
-        b, c, a = x.shape  # batch, channels, anchors
+        b, _c, a = x.shape  # batch, channels, anchors
         return self.conv(x.view(b, 4, self.c1, a).transpose(2, 1).softmax(1)).view(b, 4, a)
         # return self.conv(x.view(b, self.c1, 4, a).softmax(1)).view(b, 4, a)
 
@@ -35,8 +36,7 @@ class Proto(nn.Module):
     """YOLOv8 mask Proto module for segmentation models."""
 
     def __init__(self, c1, c_=256, c2=32):
-        """
-        Initializes the YOLOv8 mask Proto module with specified number of protos and masks.
+        """Initializes the YOLOv8 mask Proto module with specified number of protos and masks.
 
         Input arguments are ch_in, number of protos, number of masks.
         """
@@ -52,8 +52,7 @@ class Proto(nn.Module):
 
 
 class HGStem(nn.Module):
-    """
-    StemBlock of PPHGNetV2 with 5 convolutions and one maxpool2d.
+    """StemBlock of PPHGNetV2 with 5 convolutions and one maxpool2d.
 
     https://github.com/PaddlePaddle/PaddleDetection/blob/develop/ppdet/modeling/backbones/hgnet_v2.py
     """
@@ -83,8 +82,7 @@ class HGStem(nn.Module):
 
 
 class HGBlock(nn.Module):
-    """
-    HG_Block of PPHGNetV2 with 2 convolutions and LightConv.
+    """HG_Block of PPHGNetV2 with 2 convolutions and LightConv.
 
     https://github.com/PaddlePaddle/PaddleDetection/blob/develop/ppdet/modeling/backbones/hgnet_v2.py
     """
@@ -127,8 +125,7 @@ class SPPF(nn.Module):
     """Spatial Pyramid Pooling - Fast (SPPF) layer for YOLOv5 by Glenn Jocher."""
 
     def __init__(self, c1, c2, k=5):
-        """
-        Initializes the SPPF layer with given input/output channels and kernel size.
+        """Initializes the SPPF layer with given input/output channels and kernel size.
 
         This module is equivalent to SPP(k=(5, 9, 13)).
         """
@@ -281,9 +278,11 @@ class GhostBottleneck(nn.Module):
         self.conv = nn.Sequential(
             GhostConv(c1, c_, 1, 1),  # pw
             DWConv(c_, c_, k, s, act=False) if s == 2 else nn.Identity(),  # dw
-            GhostConv(c_, c2, 1, 1, act=False))  # pw-linear
-        self.shortcut = nn.Sequential(DWConv(c1, c1, k, s, act=False), Conv(c1, c2, 1, 1,
-                                                                            act=False)) if s == 2 else nn.Identity()
+            GhostConv(c_, c2, 1, 1, act=False),
+        )  # pw-linear
+        self.shortcut = (
+            nn.Sequential(DWConv(c1, c1, k, s, act=False), Conv(c1, c2, 1, 1, act=False)) if s == 2 else nn.Identity()
+        )
 
     def forward(self, x):
         """Applies skip connection and concatenation to input tensor."""
@@ -329,57 +328,59 @@ class BottleneckCSP(nn.Module):
         y2 = self.cv2(x)
         return self.cv4(self.act(self.bn(torch.cat((y1, y2), 1))))
 
+
 ################################### RT-DETR PResnet ###################################
-def get_activation(act: str, inpace: bool=True):
-    '''get activation
-    '''
+def get_activation(act: str, inpace: bool = True):
+    """Get activation."""
     act = act.lower()
-    
-    if act == 'silu':
+
+    if act == "silu":
         m = nn.SiLU()
 
-    elif act == 'relu':
+    elif act == "relu":
         m = nn.ReLU()
 
-    elif act == 'leaky_relu':
+    elif act == "leaky_relu":
         m = nn.LeakyReLU()
 
-    elif act == 'silu':
+    elif act == "silu":
         m = nn.SiLU()
-    
-    elif act == 'gelu':
+
+    elif act == "gelu":
         m = nn.GELU()
-        
+
     elif act is None:
         m = nn.Identity()
-    
+
     elif isinstance(act, nn.Module):
         m = act
 
     else:
-        raise RuntimeError('')  
+        raise RuntimeError("")
 
-    if hasattr(m, 'inplace'):
+    if hasattr(m, "inplace"):
         m.inplace = inpace
-    
-    return m 
+
+    return m
+
 
 class ConvNormLayer(nn.Module):
     def __init__(self, ch_in, ch_out, kernel_size, stride, padding=None, bias=False, act=None):
         super().__init__()
         self.conv = nn.Conv2d(
-            ch_in, 
-            ch_out, 
-            kernel_size, 
-            stride, 
-            padding=(kernel_size-1)//2 if padding is None else padding, 
-            bias=bias)
+            ch_in,
+            ch_out,
+            kernel_size,
+            stride,
+            padding=(kernel_size - 1) // 2 if padding is None else padding,
+            bias=bias,
+        )
         self.norm = nn.BatchNorm2d(ch_out)
-        self.act = nn.Identity() if act is None else get_activation(act) 
+        self.act = nn.Identity() if act is None else get_activation(act)
 
     def forward(self, x):
         return self.act(self.norm(self.conv(x)))
-    
+
     def forward_fuse(self, x):
         """Perform transposed convolution of 2D data."""
         return self.act(self.conv(x))
@@ -388,24 +389,24 @@ class ConvNormLayer(nn.Module):
 class BasicBlock_(nn.Module):
     expansion = 1
 
-    def __init__(self, ch_in, ch_out, stride, shortcut, act='relu', variant='d'):
+    def __init__(self, ch_in, ch_out, stride, shortcut, act="relu", variant="d"):
         super().__init__()
 
         self.shortcut = shortcut
 
         if not shortcut:
-            if variant == 'd' and stride == 2:
-                self.short = nn.Sequential(OrderedDict([
-                    ('pool', nn.AvgPool2d(2, 2, 0, ceil_mode=True)),
-                    ('conv', ConvNormLayer(ch_in, ch_out, 1, 1))
-                ]))
+            if variant == "d" and stride == 2:
+                self.short = nn.Sequential(
+                    OrderedDict(
+                        [("pool", nn.AvgPool2d(2, 2, 0, ceil_mode=True)), ("conv", ConvNormLayer(ch_in, ch_out, 1, 1))]
+                    )
+                )
             else:
                 self.short = ConvNormLayer(ch_in, ch_out, 1, stride)
 
         self.branch2a = ConvNormLayer(ch_in, ch_out, 3, stride, act=act)
         self.branch2b = ConvNormLayer(ch_out, ch_out, 3, 1, act=None)
-        self.act = nn.Identity() if act is None else get_activation(act) 
-
+        self.act = nn.Identity() if act is None else get_activation(act)
 
     def forward(self, x):
         out = self.branch2a(x)
@@ -414,7 +415,7 @@ class BasicBlock_(nn.Module):
             short = x
         else:
             short = self.short(x)
-        
+
         out = out + short
         out = self.act(out)
 
@@ -424,15 +425,15 @@ class BasicBlock_(nn.Module):
 class BottleNeck(nn.Module):
     expansion = 4
 
-    def __init__(self, ch_in, ch_out, stride, shortcut, act='relu', variant='d'):
+    def __init__(self, ch_in, ch_out, stride, shortcut, act="relu", variant="d"):
         super().__init__()
 
-        if variant == 'a':
+        if variant == "a":
             stride1, stride2 = stride, 1
         else:
             stride1, stride2 = 1, stride
 
-        width = ch_out 
+        width = ch_out
 
         self.branch2a = ConvNormLayer(ch_in, width, 1, stride1, act=act)
         self.branch2b = ConvNormLayer(width, width, 3, stride2, act=act)
@@ -440,15 +441,19 @@ class BottleNeck(nn.Module):
 
         self.shortcut = shortcut
         if not shortcut:
-            if variant == 'd' and stride == 2:
-                self.short = nn.Sequential(OrderedDict([
-                    ('pool', nn.AvgPool2d(2, 2, 0, ceil_mode=True)),
-                    ('conv', ConvNormLayer(ch_in, ch_out * self.expansion, 1, 1))
-                ]))
+            if variant == "d" and stride == 2:
+                self.short = nn.Sequential(
+                    OrderedDict(
+                        [
+                            ("pool", nn.AvgPool2d(2, 2, 0, ceil_mode=True)),
+                            ("conv", ConvNormLayer(ch_in, ch_out * self.expansion, 1, 1)),
+                        ]
+                    )
+                )
             else:
                 self.short = ConvNormLayer(ch_in, ch_out * self.expansion, 1, stride)
 
-        self.act = nn.Identity() if act is None else get_activation(act) 
+        self.act = nn.Identity() if act is None else get_activation(act)
 
     def forward(self, x):
         out = self.branch2a(x)
@@ -467,7 +472,20 @@ class BottleNeck(nn.Module):
 
 
 class Blocks(nn.Module):
-    def __init__(self, ch_in, ch_out, block, count, stage_num, act='relu', input_resolution=None, sr_ratio=None, kernel_size=None, kan_name=None, variant='d'):
+    def __init__(
+        self,
+        ch_in,
+        ch_out,
+        block,
+        count,
+        stage_num,
+        act="relu",
+        input_resolution=None,
+        sr_ratio=None,
+        kernel_size=None,
+        kan_name=None,
+        variant="d",
+    ):
         super().__init__()
 
         # block = BasicBlock_
@@ -477,46 +495,50 @@ class Blocks(nn.Module):
             if input_resolution is not None and sr_ratio is not None:
                 self.blocks.append(
                     block(
-                        ch_in, 
+                        ch_in,
                         ch_out,
-                        stride=2 if i == 0 and stage_num != 2 else 1, 
+                        stride=2 if i == 0 and stage_num != 2 else 1,
                         shortcut=False if i == 0 else True,
                         variant=variant,
                         act=act,
                         input_resolution=input_resolution,
-                        sr_ratio=sr_ratio)
+                        sr_ratio=sr_ratio,
+                    )
                 )
             elif kernel_size is not None:
                 self.blocks.append(
                     block(
-                        ch_in, 
+                        ch_in,
                         ch_out,
-                        stride=2 if i == 0 and stage_num != 2 else 1, 
+                        stride=2 if i == 0 and stage_num != 2 else 1,
                         shortcut=False if i == 0 else True,
                         variant=variant,
                         act=act,
-                        kernel_size=kernel_size)
+                        kernel_size=kernel_size,
+                    )
                 )
             elif kan_name is not None:
                 self.blocks.append(
                     block(
-                        ch_in, 
+                        ch_in,
                         ch_out,
-                        stride=2 if i == 0 and stage_num != 2 else 1, 
+                        stride=2 if i == 0 and stage_num != 2 else 1,
                         shortcut=False if i == 0 else True,
                         variant=variant,
                         act=act,
-                        kan_name=kan_name)
+                        kan_name=kan_name,
+                    )
                 )
             else:
                 self.blocks.append(
                     block(
-                        ch_in, 
+                        ch_in,
                         ch_out,
-                        stride=2 if i == 0 and stage_num != 2 else 1, 
+                        stride=2 if i == 0 and stage_num != 2 else 1,
                         shortcut=False if i == 0 else True,
                         variant=variant,
-                        act=act)
+                        act=act,
+                    )
                 )
             if i == 0:
                 ch_in = ch_out * block.expansion
@@ -526,39 +548,46 @@ class Blocks(nn.Module):
         for block in self.blocks:
             out = block(out)
         return out
-    
 
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-from torch.autograd import Function
-import dill as pickle
 
 import pywt
 import pywt.data
+import torch.nn as nn
+from torch.autograd import Function
 
 
 def create_wavelet_filter(wave, in_size, out_size, type=torch.float):
     w = pywt.Wavelet(wave)
     dec_hi = torch.tensor(w.dec_hi[::-1], dtype=type)
     dec_lo = torch.tensor(w.dec_lo[::-1], dtype=type)
-    dec_filters = torch.stack([dec_lo.unsqueeze(0) * dec_lo.unsqueeze(1),
-                               dec_lo.unsqueeze(0) * dec_hi.unsqueeze(1),
-                               dec_hi.unsqueeze(0) * dec_lo.unsqueeze(1),
-                               dec_hi.unsqueeze(0) * dec_hi.unsqueeze(1)], dim=0)
+    dec_filters = torch.stack(
+        [
+            dec_lo.unsqueeze(0) * dec_lo.unsqueeze(1),
+            dec_lo.unsqueeze(0) * dec_hi.unsqueeze(1),
+            dec_hi.unsqueeze(0) * dec_lo.unsqueeze(1),
+            dec_hi.unsqueeze(0) * dec_hi.unsqueeze(1),
+        ],
+        dim=0,
+    )
 
     dec_filters = dec_filters[:, None].repeat(in_size, 1, 1, 1)
 
     rec_hi = torch.tensor(w.rec_hi[::-1], dtype=type).flip(dims=[0])
     rec_lo = torch.tensor(w.rec_lo[::-1], dtype=type).flip(dims=[0])
-    rec_filters = torch.stack([rec_lo.unsqueeze(0) * rec_lo.unsqueeze(1),
-                               rec_lo.unsqueeze(0) * rec_hi.unsqueeze(1),
-                               rec_hi.unsqueeze(0) * rec_lo.unsqueeze(1),
-                               rec_hi.unsqueeze(0) * rec_hi.unsqueeze(1)], dim=0)
+    rec_filters = torch.stack(
+        [
+            rec_lo.unsqueeze(0) * rec_lo.unsqueeze(1),
+            rec_lo.unsqueeze(0) * rec_hi.unsqueeze(1),
+            rec_hi.unsqueeze(0) * rec_lo.unsqueeze(1),
+            rec_hi.unsqueeze(0) * rec_hi.unsqueeze(1),
+        ],
+        dim=0,
+    )
 
     rec_filters = rec_filters[:, None].repeat(out_size, 1, 1, 1)
 
     return dec_filters, rec_filters
+
 
 def wavelet_transform(x, filters):
     b, c, h, w = x.shape
@@ -590,6 +619,7 @@ class WaveletTransform(Function):
         grad = inverse_wavelet_transform(grad_output, ctx.filters)
         return grad, None
 
+
 # Define the InverseWaveletTransform class
 class InverseWaveletTransform(Function):
     @staticmethod
@@ -604,21 +634,26 @@ class InverseWaveletTransform(Function):
         grad = wavelet_transform(grad_output, ctx.filters)
         return grad, None
 
+
 # Initialize the WaveletTransform
 def wavelet_transform_init(filters):
     def apply(input):
         return WaveletTransform.apply(input, filters)
+
     return apply
+
 
 # Initialize the InverseWaveletTransform
 def inverse_wavelet_transform_init(filters):
     def apply(input):
         return InverseWaveletTransform.apply(input, filters)
+
     return apply
 
+
 class WTConv2d(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size=5, stride=1, bias=True, wt_levels=1, wt_type='db1'):
-        super(WTConv2d, self).__init__()
+    def __init__(self, in_channels, out_channels, kernel_size=5, stride=1, bias=True, wt_levels=1, wt_type="db1"):
+        super().__init__()
 
         assert in_channels == out_channels
 
@@ -627,9 +662,9 @@ class WTConv2d(nn.Module):
         self.kernel_size = kernel_size
         self.wt_levels = wt_levels
         self.bias = bias
-        self.padding = (kernel_size - 1) // 2 #自动计算
+        self.padding = (kernel_size - 1) // 2  # 自动计算
         self.groups = 1
-        
+
         self.wt_levels = wt_levels
         self.stride = stride
         self.dilation = 1
@@ -637,25 +672,41 @@ class WTConv2d(nn.Module):
         self.wt_filter, self.iwt_filter = create_wavelet_filter(wt_type, in_channels, in_channels, torch.float)
         self.wt_filter = nn.Parameter(self.wt_filter, requires_grad=False)
         self.iwt_filter = nn.Parameter(self.iwt_filter, requires_grad=False)
-        
+
         self.wt_function = wavelet_transform_init(self.wt_filter)
         self.iwt_function = inverse_wavelet_transform_init(self.iwt_filter)
 
-        self.base_conv = nn.Conv2d(in_channels, in_channels, kernel_size, padding='same', stride=1, dilation=1, groups=in_channels, bias=bias)
-        self.base_scale = _ScaleModule([1,in_channels,1,1])
+        self.base_conv = nn.Conv2d(
+            in_channels, in_channels, kernel_size, padding="same", stride=1, dilation=1, groups=in_channels, bias=bias
+        )
+        self.base_scale = _ScaleModule([1, in_channels, 1, 1])
 
         self.weight = self.base_conv.weight
 
         self.wavelet_convs = nn.ModuleList(
-            [nn.Conv2d(in_channels*4, in_channels*4, kernel_size, padding='same', stride=1, dilation=1, groups=in_channels*4, bias=False) for _ in range(self.wt_levels)]
+            [
+                nn.Conv2d(
+                    in_channels * 4,
+                    in_channels * 4,
+                    kernel_size,
+                    padding="same",
+                    stride=1,
+                    dilation=1,
+                    groups=in_channels * 4,
+                    bias=False,
+                )
+                for _ in range(self.wt_levels)
+            ]
         )
         self.wavelet_scale = nn.ModuleList(
-            [_ScaleModule([1,in_channels*4,1,1], init_scale=0.1) for _ in range(self.wt_levels)]
+            [_ScaleModule([1, in_channels * 4, 1, 1], init_scale=0.1) for _ in range(self.wt_levels)]
         )
 
         if self.stride > 1:
             self.stride_filter = nn.Parameter(torch.ones(in_channels, 1, 1, 1), requires_grad=False)
-            self.do_stride = lambda x_in: F.conv2d(x_in, self.stride_filter.to(x_in.device), bias=None, stride=self.stride, groups=in_channels)
+            self.do_stride = lambda x_in: F.conv2d(
+                x_in, self.stride_filter.to(x_in.device), bias=None, stride=self.stride, groups=in_channels
+            )
         else:
             self.do_stride = None
 
@@ -675,19 +726,19 @@ class WTConv2d(nn.Module):
                 curr_x_ll = F.pad(curr_x_ll, curr_pads)
 
             curr_x = self.wt_function(curr_x_ll)
-            curr_x_ll = curr_x[:,:,0,:,:]
-            
+            curr_x_ll = curr_x[:, :, 0, :, :]
+
             shape_x = curr_x.shape
             curr_x_tag = curr_x.reshape(shape_x[0], shape_x[1] * 4, shape_x[3], shape_x[4])
             curr_x_tag = self.wavelet_scale[i](self.wavelet_convs[i](curr_x_tag))
             curr_x_tag = curr_x_tag.reshape(shape_x)
 
-            x_ll_in_levels.append(curr_x_tag[:,:,0,:,:])
-            x_h_in_levels.append(curr_x_tag[:,:,1:4,:,:])
+            x_ll_in_levels.append(curr_x_tag[:, :, 0, :, :])
+            x_h_in_levels.append(curr_x_tag[:, :, 1:4, :, :])
 
         next_x_ll = 0
 
-        for i in range(self.wt_levels-1, -1, -1):
+        for i in range(self.wt_levels - 1, -1, -1):
             curr_x_ll = x_ll_in_levels.pop()
             curr_x_h = x_h_in_levels.pop()
             curr_shape = shapes_in_levels.pop()
@@ -697,49 +748,51 @@ class WTConv2d(nn.Module):
             curr_x = torch.cat([curr_x_ll.unsqueeze(2), curr_x_h], dim=2)
             next_x_ll = self.iwt_function(curr_x)
 
-            next_x_ll = next_x_ll[:, :, :curr_shape[2], :curr_shape[3]]
+            next_x_ll = next_x_ll[:, :, : curr_shape[2], : curr_shape[3]]
 
         x_tag = next_x_ll
         assert len(x_ll_in_levels) == 0
-        
+
         x = self.base_scale(self.base_conv(x))
         x = x + x_tag
-        
+
         if self.do_stride is not None:
             x = self.do_stride(x)
 
         return x
 
+
 class _ScaleModule(nn.Module):
     def __init__(self, dims, init_scale=1.0, init_bias=0):
-        super(_ScaleModule, self).__init__()
+        super().__init__()
         self.dims = dims
         self.weight = nn.Parameter(torch.ones(*dims) * init_scale)
         self.bias = None
-    
+
     def forward(self, x):
         return torch.mul(self.weight, x)
-    
+
+
 class WTConvNormLayer(nn.Module):
     def __init__(self, ch_in, ch_out, kernel_size, stride, padding=None, bias=False, act=None):
         super().__init__()
         self.conv = WTConv2d(
-            ch_in, 
-            ch_out, 
-            kernel_size, 
-            stride, 
-            # padding=(kernel_size-1)//2 if padding is None else padding, 
-            bias=bias)
+            ch_in,
+            ch_out,
+            kernel_size,
+            stride,
+            # padding=(kernel_size-1)//2 if padding is None else padding,
+            bias=bias,
+        )
         self.norm = nn.BatchNorm2d(ch_out)
-        self.act = nn.Identity() if act is None else get_activation(act) 
-
+        self.act = nn.Identity() if act is None else get_activation(act)
 
     def forward(self, x):
         # 调用 WTConv2d 的 forward 方法
         x = self.conv.forward(x)
         x = self.norm(x)  # 批量归一化
         return self.act(x)  # 激活函数
-    
+
     def forward_fuse(self, x):
         # 调用 WTConv2d 的 forward_fuse 方法
         x = self.conv.forward_fuse(x)

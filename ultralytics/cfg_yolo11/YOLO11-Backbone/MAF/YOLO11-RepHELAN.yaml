@@ -14,15 +14,15 @@ scales: # model compound scaling constants, i.e. 'model=yolo11n.yaml' will call 
 # YOLO11n backbone
 backbone:
   # [from, repeats, module, args]
-  - [-1, 1, RepVGGBlock, [64, 3, 2]]  # 0-P1/2
-  - [-1, 1, RepVGGBlock, [128, 3, 2]]  # 1-P2/4
-  - [ -1, 2, RepHDW, [ 64, True, 0.5, 3, 3] ]
-  - [-1, 1, MPRep, [256]]  # 3-P3/8
-  - [ -1, 2, RepHDW, [ 128, True, 0.5, 5, 3] ]
-  - [-1, 1, MPRep, [512]]  # 5-P4/16
-  - [ -1, 2, RepHDW, [ 256, True, 0.5, 7, 3] ]
-  - [-1, 1, MPRep, [1024]]  # 7-P5/32
-  - [ -1, 2, RepHDW, [ 512, True, 0.5, 9, 3] ]
+  - [-1, 1, RepVGGBlock, [64, 3, 2]] # 0-P1/2
+  - [-1, 1, RepVGGBlock, [128, 3, 2]] # 1-P2/4
+  - [-1, 2, RepHDW, [64, True, 0.5, 3, 3]]
+  - [-1, 1, MPRep, [256]] # 3-P3/8
+  - [-1, 2, RepHDW, [128, True, 0.5, 5, 3]]
+  - [-1, 1, MPRep, [512]] # 5-P4/16
+  - [-1, 2, RepHDW, [256, True, 0.5, 7, 3]]
+  - [-1, 1, MPRep, [1024]] # 7-P5/32
+  - [-1, 2, RepHDW, [512, True, 0.5, 9, 3]]
   - [-1, 1, SPPF, [1024, 5]] # 9
   - [-1, 2, C2PSA, [1024]] # 10
 
