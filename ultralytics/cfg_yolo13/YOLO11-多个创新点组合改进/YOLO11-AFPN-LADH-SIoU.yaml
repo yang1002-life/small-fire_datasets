@@ -11,7 +11,7 @@ scales: # model compound scaling constants, i.e. 'model=yolo11n.yaml' will call 
   l: [1.00, 1.00, 512] # summary: 631 layers, 25372160 parameters, 25372144 gradients, 87.6 GFLOPs
   x: [1.00, 1.50, 512] # summary: 631 layers, 56966176 parameters, 56966160 gradients, 196.0 GFLOPs
 
-loss: 'SIoU'
+loss: "SIoU"
 # YOLO11n backbone
 backbone:
   # [from, repeats, module, args]
@@ -34,12 +34,12 @@ head:
   - [10, 1, Conv, [64, 1, 1]]
   - [11, 1, Conv, [128, 1, 1]]
   - [12, 1, Conv, [256, 1, 1]]
-  - [[13, 14], 1, ASFF_2, [64, 0]]  
-  - [[13, 14], 1, ASFF_2, [128, 1]]  
+  - [[13, 14], 1, ASFF_2, [64, 0]]
+  - [[13, 14], 1, ASFF_2, [128, 1]]
   - [16, 1, BasicBlock, [64]]
   - [17, 1, BasicBlock, [128]]
-  - [[18, 19, 15], 1, ASFF_3, [64, 0]]  
-  - [[18, 19, 15], 1, ASFF_3, [128, 1]] 
+  - [[18, 19, 15], 1, ASFF_3, [64, 0]]
+  - [[18, 19, 15], 1, ASFF_3, [128, 1]]
   - [[18, 19, 15], 1, ASFF_3, [256, 2]]
   - [20, 1, BasicBlock, [64]]
   - [21, 1, BasicBlock, [128]]
@@ -48,8 +48,8 @@ head:
   - [24, 1, Conv, [512, 1, 1]]
   - [25, 1, Conv, [1024, 1, 1]]
 
-  - [[26, 27, 28], 1, Detect, [nc]]  # Detect(P3, P4, P5)
+  - [[26, 27, 28], 1, Detect, [nc]] # Detect(P3, P4, P5)
 
 # 检测头部分
-Head: 
+Head:
   - [[19], 1, AsDDet, [nc]]

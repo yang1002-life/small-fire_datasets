@@ -27,33 +27,33 @@ backbone:
 
 # YOLOv8.0n head
 head:
-  - [ 6, 1,SimConvWrapper,[ 128, 3, 2 ] ]
-  - [ [ -1, 9 ], 1, Concat, [ 1 ] ] # 576
-  - [ -1, 2, RepHDW, [ 256, False, 0.5, 9, 3] ]  #  12
+  - [6, 1, SimConvWrapper, [128, 3, 2]]
+  - [[-1, 9], 1, Concat, [1]] # 576
+  - [-1, 2, RepHDW, [256, False, 0.5, 9, 3]] #  12
 
-  - [ -1, 1, nn.Upsample, [ None, 2, 'nearest' ] ]
-  - [ 4, 1,ConvWrapper,[ 96, 3, 2 ] ]
-  - [ [ -1, 6, -2 ], 1, Concat, [1] ] # 576 SAF模块
-  - [ -1, 2, RepHDW, [ 192, False, 0.5, 7, 3] ]  #  16
+  - [-1, 1, nn.Upsample, [None, 2, "nearest"]]
+  - [4, 1, ConvWrapper, [96, 3, 2]]
+  - [[-1, 6, -2], 1, Concat, [1]] # 576 SAF模块
+  - [-1, 2, RepHDW, [192, False, 0.5, 7, 3]] #  16
 
-  - [ -1, 1, nn.Upsample, [ None, 2, 'nearest' ] ]
-  - [ 2, 1,ConvWrapper,[ 96, 3, 2 ] ]
+  - [-1, 1, nn.Upsample, [None, 2, "nearest"]]
+  - [2, 1, ConvWrapper, [96, 3, 2]]
   - [[-1, 4, -2], 1, Concat, [1]]
-  - [ -1, 2, RepHDW, [ 192, False, 0.5, 5, 3] ] # merge_4 20
+  - [-1, 2, RepHDW, [192, False, 0.5, 5, 3]] # merge_4 20
 
-  - [ [ -1, 17 ], 1, Concat,[ 1] ]
-  - [ -1, 2, RepHDW, [ 192, False, 0.5, 5, 3] ] #  merge_5  22  out
+  - [[-1, 17], 1, Concat, [1]]
+  - [-1, 2, RepHDW, [192, False, 0.5, 5, 3]] #  merge_5  22  out
 
-  - [ -1, 1,ConvWrapper,[ 192, 3, 2 ] ]
-  - [ 20, 1,ConvWrapper,[ 192, 3, 2 ] ]
-  - [ [ -2, -1, 16, 13,], 1, Concat, [ 1 ] ] # 256 AAF模块 都是concat
+  - [-1, 1, ConvWrapper, [192, 3, 2]]
+  - [20, 1, ConvWrapper, [192, 3, 2]]
+  - [[-2, -1, 16, 13], 1, Concat, [1]] # 256 AAF模块 都是concat
     # [[-1, -2, 16, 13], 1, HighAttentionConcat, [128, 96]],
-  - [ -1, 2, RepHDW, [192, False, 0.5, 7, 3] ] #   merge_7  26  out
+  - [-1, 2, RepHDW, [192, False, 0.5, 7, 3]] #   merge_7  26  out
 
-  - [ -1, 1,ConvWrapper,[ 192, 3, 2 ] ]
-  - [ 16, 1,ConvWrapper,[ 192, 3, 2 ] ]
-  - [ [ -2, -1, 12], 1, Concat, [ 1] ] # 704
-  - [ -1, 2, RepHDW, [256, False, 0.5, 9,  3] ] #  merge_6 25  out
+  - [-1, 1, ConvWrapper, [192, 3, 2]]
+  - [16, 1, ConvWrapper, [192, 3, 2]]
+  - [[-2, -1, 12], 1, Concat, [1]] # 704
+  - [-1, 2, RepHDW, [256, False, 0.5, 9, 3]] #  merge_6 25  out
 
-  - [[22, 26, 30], 1, Detect, [nc]]  # Detect(P3, P4, P5)
+  - [[22, 26, 30], 1, Detect, [nc]] # Detect(P3, P4, P5)
 

@@ -49,7 +49,6 @@
 #
 #  - [[16, 19, 22], 1, Detect, [nc]] # Detect(P3, P4, P5)
 
-
 # Ultralytics 🚀 AGPL-3.0 License - https://ultralytics.com/license
 
 # Ultralytics YOLO11 object detection model with P3/8 - P5/32 outputs

@@ -1,14 +1,13 @@
-
 import torch
 import torch.nn as nn
-import numpy as np
-import torch.nn.functional as F
 
 from ultralytics.nn.modules.conv import Conv
+
+
 class SPPFCSPC(nn.Module):
     # CSP https://github.com/WongKinYiu/CrossStagePartialNetworks
     def __init__(self, c1, c2, n=1, shortcut=False, g=1, e=0.5, k=5):
-        super(SPPFCSPC, self).__init__()
+        super().__init__()
         c_ = int(2 * c2 * e)  # hidden channels
         self.cv1 = Conv(c1, c_, 1, 1)
         self.cv2 = Conv(c1, c_, 1, 1)
@@ -23,6 +22,6 @@ class SPPFCSPC(nn.Module):
         x1 = self.cv4(self.cv3(self.cv1(x)))
         x2 = self.m(x1)
         x3 = self.m(x2)
-        y1 = self.cv6(self.cv5(torch.cat((x1,x2,x3, self.m(x3)),1)))
+        y1 = self.cv6(self.cv5(torch.cat((x1, x2, x3, self.m(x3)), 1)))
         y2 = self.cv2(x)
         return self.cv7(torch.cat((y1, y2), dim=1))
