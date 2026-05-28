@@ -1,9 +1,5 @@
-import math
-from functools import partial
-import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 
 class drop_connect:
@@ -17,24 +13,26 @@ class drop_connect:
         batch_size = x.shape[0]
         random_tensor = keep_prob
         random_tensor += torch.rand([batch_size, 1, 1, 1], dtype=x.dtype, device=x.device)
-        binary_mask = torch.floor(random_tensor) # 1
+        binary_mask = torch.floor(random_tensor)  # 1
         x = (x / keep_prob) * binary_mask
         return x
-        
+
+
 class stem(nn.Module):
-    def __init__(self, c1, c2, act='ReLU6'):
+    def __init__(self, c1, c2, act="ReLU6"):
         super().__init__()
         self.conv = nn.Conv2d(c1, c2, kernel_size=3, stride=2, padding=1, bias=False)
         self.bn = nn.BatchNorm2d(num_features=c2)
-        if act == 'ReLU6':
+        if act == "ReLU6":
             self.act = nn.ReLU6(inplace=True)
-    
+
     def forward(self, x):
         return self.act(self.bn(self.conv(x)))
 
+
 class MBConvBlock(nn.Module):
     def __init__(self, inp, final_oup, k, s, expand_ratio, drop_connect_rate, has_se=False):
-        super(MBConvBlock, self).__init__()
+        super().__init__()
 
         self._momentum = 0.01
         self._epsilon = 1e-3
@@ -54,13 +52,19 @@ class MBConvBlock(nn.Module):
 
         # Depthwise convolution phase
         self._depthwise_conv = nn.Conv2d(
-            in_channels=oup, out_channels=oup, groups=oup,  # groups makes it depthwise
-            kernel_size=k, padding=(k - 1) // 2, stride=s, bias=False)
+            in_channels=oup,
+            out_channels=oup,
+            groups=oup,  # groups makes it depthwise
+            kernel_size=k,
+            padding=(k - 1) // 2,
+            stride=s,
+            bias=False,
+        )
         self._bn1 = nn.BatchNorm2d(num_features=oup, momentum=self._momentum, eps=self._epsilon)
 
         # Squeeze and Excitation layer, if desired
         if self.has_se:
-            num_squeezed_channels = max(1, int(inp * se_ratio))
+            max(1, int(inp * se_ratio))
             # self.se = SeBlock(oup, 4)
 
         # Output phase
@@ -76,7 +80,6 @@ class MBConvBlock(nn.Module):
         :param drop_connect_rate: drop connect rate (float, between 0 and 1)
         :return: output of block
         """
-
         # Expansion and Depthwise Convolution
         identity = x
         if self.expand_ratio != 1:
@@ -90,7 +93,7 @@ class MBConvBlock(nn.Module):
         x = self._bn2(self._project_conv(x))
 
         # Skip connection and drop connect
-        if self.id_skip and self.stride == 1  and self.input_filters == self.output_filters:
+        if self.id_skip and self.stride == 1 and self.input_filters == self.output_filters:
             if drop_connect_rate:
                 x = self.drop_connect(x, training=self.training)
             x += identity  # skip connection

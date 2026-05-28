@@ -3,17 +3,20 @@
 from collections import deque
 from math import sqrt
 
-from ultralytics.solutions.solutions import BaseSolution, SolutionAnnotator, SolutionResults
+from ultralytics.solutions.solutions import (
+    BaseSolution,
+    SolutionAnnotator,
+    SolutionResults,
+)
 from ultralytics.utils.plotting import colors
 
 
 class SpeedEstimator(BaseSolution):
-    """
-    A class to estimate the speed of objects in a real-time video stream based on their tracks.
+    """A class to estimate the speed of objects in a real-time video stream based on their tracks.
 
-    This class extends the BaseSolution class and provides functionality for estimating object speeds using
-    tracking data in video streams. Speed is calculated based on pixel displacement over time and converted
-    to real-world units using a configurable meters-per-pixel scale factor.
+    This class extends the BaseSolution class and provides functionality for estimating object speeds using tracking
+    data in video streams. Speed is calculated based on pixel displacement over time and converted to real-world units
+    using a configurable meters-per-pixel scale factor.
 
     Attributes:
         fps (float): Video frame rate for time calculations.
@@ -41,8 +44,7 @@ class SpeedEstimator(BaseSolution):
     """
 
     def __init__(self, **kwargs):
-        """
-        Initialize the SpeedEstimator object with speed estimation parameters and data structures.
+        """Initialize the SpeedEstimator object with speed estimation parameters and data structures.
 
         Args:
             **kwargs (Any): Additional keyword arguments passed to the parent class.
@@ -60,8 +62,7 @@ class SpeedEstimator(BaseSolution):
         self.max_speed = self.CFG["max_speed"]  # Maximum speed adjustment
 
     def process(self, im0):
-        """
-        Process an input frame to estimate object speeds based on tracking data.
+        """Process an input frame to estimate object speeds based on tracking data.
 
         Args:
             im0 (np.ndarray): Input image for processing with shape (H, W, C) for RGB images.

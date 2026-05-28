@@ -1,20 +1,11 @@
-import json
-import math
-import platform
-import warnings
-from copy import copy
-from pathlib import Path
-
-import cv2
 import numpy as np
-import pandas as pd
-import requests
 import torch
 import torch.nn as nn
 
 
 class SimConv(nn.Module):
-    '''Normal Conv with ReLU activation'''
+    """Normal Conv with ReLU activation."""
+
     def __init__(self, in_channels, out_channels, kernel_size, stride, groups=1, bias=False):
         super().__init__()
         padding = kernel_size // 2
@@ -36,20 +27,41 @@ class SimConv(nn.Module):
     def forward_fuse(self, x):
         return self.act(self.conv(x))
 
+
 def conv_bn(in_channels, out_channels, kernel_size, stride, padding, groups=1):
     result = nn.Sequential()
-    result.add_module('conv', nn.Conv2d(in_channels=in_channels, out_channels=out_channels,
-                                        kernel_size=kernel_size, stride=stride, padding=padding, groups=groups,
-                                        bias=False))
-    result.add_module('bn', nn.BatchNorm2d(num_features=out_channels))
+    result.add_module(
+        "conv",
+        nn.Conv2d(
+            in_channels=in_channels,
+            out_channels=out_channels,
+            kernel_size=kernel_size,
+            stride=stride,
+            padding=padding,
+            groups=groups,
+            bias=False,
+        ),
+    )
+    result.add_module("bn", nn.BatchNorm2d(num_features=out_channels))
 
     return result
 
+
 class RepVGGBlock(nn.Module):
-    
-    def __init__(self, in_channels, out_channels, kernel_size=3,
-                 stride=1, padding=1, dilation=1, groups=1, padding_mode='zeros', deploy=False, use_se=False):
-        super(RepVGGBlock, self).__init__()
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        kernel_size=3,
+        stride=1,
+        padding=1,
+        dilation=1,
+        groups=1,
+        padding_mode="zeros",
+        deploy=False,
+        use_se=False,
+    ):
+        super().__init__()
         self.deploy = deploy
         self.groups = groups
         self.in_channels = in_channels
@@ -66,18 +78,38 @@ class RepVGGBlock(nn.Module):
         self.se = nn.Identity()
 
         if deploy:
-            self.rbr_reparam = nn.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size,
-                                         stride=stride,
-                                         padding=padding, dilation=dilation, groups=groups, bias=True,
-                                         padding_mode=padding_mode)
+            self.rbr_reparam = nn.Conv2d(
+                in_channels=in_channels,
+                out_channels=out_channels,
+                kernel_size=kernel_size,
+                stride=stride,
+                padding=padding,
+                dilation=dilation,
+                groups=groups,
+                bias=True,
+                padding_mode=padding_mode,
+            )
 
         else:
-            self.rbr_identity = nn.BatchNorm2d(
-                num_features=in_channels) if out_channels == in_channels and stride == 1 else None
-            self.rbr_dense = conv_bn(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size,
-                                     stride=stride, padding=padding, groups=groups)
-            self.rbr_1x1 = conv_bn(in_channels=in_channels, out_channels=out_channels, kernel_size=1, stride=stride,
-                                   padding=padding_11, groups=groups)
+            self.rbr_identity = (
+                nn.BatchNorm2d(num_features=in_channels) if out_channels == in_channels and stride == 1 else None
+            )
+            self.rbr_dense = conv_bn(
+                in_channels=in_channels,
+                out_channels=out_channels,
+                kernel_size=kernel_size,
+                stride=stride,
+                padding=padding,
+                groups=groups,
+            )
+            self.rbr_1x1 = conv_bn(
+                in_channels=in_channels,
+                out_channels=out_channels,
+                kernel_size=1,
+                stride=stride,
+                padding=padding_11,
+                groups=groups,
+            )
             # print('RepVGG Block, identity = ', self.rbr_identity)
 
     def _fuse_bn_tensor(self, branch):
@@ -92,7 +124,7 @@ class RepVGGBlock(nn.Module):
             eps = branch.bn.eps
         else:
             assert isinstance(branch, nn.BatchNorm2d)
-            if not hasattr(self, 'id_tensor'):
+            if not hasattr(self, "id_tensor"):
                 input_dim = self.in_channels // self.groups
                 kernel_value = np.zeros((self.in_channels, input_dim, 3, 3), dtype=np.float32)
                 for i in range(self.in_channels):
@@ -116,14 +148,14 @@ class RepVGGBlock(nn.Module):
 
     def _pad_1x1_to_3x3_tensor(self, kernel1x1):
         if kernel1x1 is None:
-            return 0 #mg
+            return 0  # mg
         else:
             return torch.nn.functional.pad(kernel1x1, [1, 1, 1, 1])
 
     def forward(self, inputs):
         if self.deploy:
             return self.nonlinearity(self.rbr_dense(inputs))
-        if hasattr(self, 'rbr_reparam'):
+        if hasattr(self, "rbr_reparam"):
             return self.nonlinearity(self.se(self.rbr_reparam(inputs)))
 
         if self.rbr_identity is None:
@@ -133,13 +165,13 @@ class RepVGGBlock(nn.Module):
 
         return self.nonlinearity(self.se(self.rbr_dense(inputs) + self.rbr_1x1(inputs) + id_out))
 
+
 class RepBlock(nn.Module):
-    '''
-        RepBlock is a stage block with rep-style basic block
-    '''
+    """RepBlock is a stage block with rep-style basic block."""
+
     def __init__(self, in_channels, out_channels, n=1, isTrue=None):
         super().__init__()
-        self.conv1 = RepVGGBlock(in_channels, out_channels) #mg
+        self.conv1 = RepVGGBlock(in_channels, out_channels)  # mg
         self.block = nn.Sequential(*(RepVGGBlock(out_channels, out_channels) for _ in range(n - 1))) if n > 1 else None
 
     def forward(self, x):
@@ -148,16 +180,14 @@ class RepBlock(nn.Module):
             x = self.block(x)
         return x
 
+
 class Transpose(nn.Module):
-    '''Normal Transpose, default for upsampling'''
+    """Normal Transpose, default for upsampling."""
+
     def __init__(self, in_channels, out_channels, kernel_size=2, stride=2):
         super().__init__()
         self.upsample_transpose = torch.nn.ConvTranspose2d(
-            in_channels=in_channels,
-            out_channels=out_channels,
-            kernel_size=kernel_size,
-            stride=stride,
-            bias=True
+            in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size, stride=stride, bias=True
         )
 
     def forward(self, x):

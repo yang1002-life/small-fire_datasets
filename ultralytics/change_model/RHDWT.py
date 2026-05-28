@@ -1,7 +1,6 @@
-import torch.nn as nn
 import torch
-from pytorch_wavelets import DWTForward, DWTInverse
-
+import torch.nn as nn
+from pytorch_wavelets import DWTForward
 
 #
 
@@ -9,11 +8,12 @@ from pytorch_wavelets import DWTForward, DWTInverse
 # 论文链接： https://ieeexplore.ieee.org/document/10855453
 # 代码改进者：一勺汤
 
+
 # 定义一个双卷积模块，包含两个卷积层和LeakyReLU激活函数
 class double_conv(nn.Module):
     def __init__(self, in_channels, out_channels):
         # 调用父类的构造函数
-        super(double_conv, self).__init__()
+        super().__init__()
         # 定义一个顺序容器，包含两个卷积层和LeakyReLU激活函数
         self.d_conv = nn.Sequential(
             # 第一个卷积层，输入通道数为in_channels，输出通道数为out_channels，卷积核大小为3，填充为1
@@ -23,7 +23,7 @@ class double_conv(nn.Module):
             # 第二个卷积层，输入和输出通道数均为out_channels，卷积核大小为3，填充为1
             nn.Conv2d(out_channels, out_channels, 3, padding=1),
             # LeakyReLU激活函数
-            nn.LeakyReLU(inplace=True)
+            nn.LeakyReLU(inplace=True),
         )
 
     def forward(self, x):
@@ -36,7 +36,7 @@ class double_conv(nn.Module):
 class single_conv(nn.Module):
     def __init__(self, in_channels, out_channels):
         # 调用父类的构造函数
-        super(single_conv, self).__init__()
+        super().__init__()
         # 定义一个顺序容器，包含一个卷积层和LeakyReLU激活函数
         self.s_conv = nn.Sequential(
             # 卷积层，输入通道数为in_channels，输出通道数为out_channels，卷积核大小为3，填充为1
@@ -55,7 +55,7 @@ class single_conv(nn.Module):
 class RHDWT_Block(nn.Module):
     def __init__(self, in_ch, out_ch, feats):
         # 调用父类的构造函数
-        super(RHDWT_Block, self).__init__()
+        super().__init__()
         # 用于存储特征的列表
         self.features = []
         # 模型的头部，使用单卷积模块将输入通道数转换为feats
@@ -65,7 +65,7 @@ class RHDWT_Block(nn.Module):
         # 恒等映射卷积层，用于下采样，将通道数翻倍
         self.identety1 = nn.Conv2d(in_channels=feats, out_channels=out_ch, kernel_size=3, stride=2, padding=1)
         # 离散小波变换层，使用Haar小波进行一级分解
-        self.DWT = DWTForward(J=1, wave='haar')
+        self.DWT = DWTForward(J=1, wave="haar")
         # 第二个单卷积模块，用于特征编码
         self.dconv_encode1 = single_conv(4 * feats, out_ch)
 
@@ -101,7 +101,6 @@ class RHDWT_Block(nn.Module):
         return out
 
 
-
 if __name__ == "__main__":
     # 定义输入通道数、输出通道数和特征通道数
     in_ch = 64
@@ -115,4 +114,3 @@ if __name__ == "__main__":
     output = model(input_tensor)
     # 打印输出的形状
     print("Output shape:", output.shape)
-
