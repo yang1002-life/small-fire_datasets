@@ -21,6 +21,29 @@ The work focuses on small-scale flame perception for early fire warning and loca
 
 The datasets include flame images collected from controlled experiments and diverse real-world-like scenes. The paper also integrates several public fire-related datasets for the comprehensive detection benchmark.
 
+## Comprehensive Flame Dataset validation split download
+
+The original validation split of the **Comprehensive Flame Dataset** (`fire_rgb`) is available on Hugging Face:
+
+**[yang1002/comprehensive-flame-dataset-validation](https://huggingface.co/datasets/yang1002/comprehensive-flame-dataset-validation)**
+
+This release contains **2,424 validation images** (approximately 2.14 GB including annotations), 2,424 YOLO TXT labels and 2,424 original XML annotations. These counts describe this validation release and are separate from the dataset totals above. No training split is included.
+
+- YOLO labels use the single class `0: fire`, with 3,231 fire bounding boxes.
+- The 899 empty TXT files are retained: they indicate no fire boxes in the supplied labels, and may still correspond to smoke-containing images.
+- Original XML annotations contain the same 3,231 fire boxes plus 576 smoke boxes. TXT and XML therefore have different class coverage.
+- Original image, label and XML files are preserved. `manifest.json` and `SHA256SUMS` provide file integrity checks.
+- No dataset license has been specified. Do not infer one from the project code or dependencies; consult the dataset owner regarding reuse.
+
+Download with the Hugging Face CLI:
+
+```bash
+pip install --upgrade huggingface_hub
+hf download yang1002/comprehensive-flame-dataset-validation --repo-type dataset --local-dir comprehensive-flame-dataset-validation
+```
+
+The download preserves `images/val`, `labels/val` and `annotations/val`. See the [dataset card](https://huggingface.co/datasets/yang1002/comprehensive-flame-dataset-validation) for annotation details, Python download instructions and reproducible downloads using a fixed commit revision.
+
 ## Suggested structure
 
 
@@ -64,7 +87,7 @@ If this dataset or paper is useful for your research, please cite:
 
 - Please check the paper for the full experimental setup, model design, and evaluation protocol.
 - This repository is intended to provide dataset access and documentation for academic research.
-- If dataset files are not yet visible in the repository, they still need to be uploaded separately.
+- The Comprehensive Flame Dataset (`fire_rgb`) validation split is hosted on Hugging Face via the link above; other dataset resources are not included in that release.
 
 ## Contact
 
