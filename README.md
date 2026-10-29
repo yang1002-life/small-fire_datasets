@@ -44,6 +44,25 @@ hf download yang1002/comprehensive-flame-dataset-validation --repo-type dataset 
 
 The download preserves `images/val`, `labels/val` and `annotations/val`. See the [dataset card](https://huggingface.co/datasets/yang1002/comprehensive-flame-dataset-validation) for annotation details, Python download instructions and reproducible downloads using a fixed commit revision.
 
+## Binocular Flame Localization Dataset compact subset download
+
+A **compact subset** of the Binocular Flame Localization Dataset is also available on Hugging Face:
+
+**[yang1002/Binocular-Flame-Localization-Dataset](https://huggingface.co/datasets/yang1002/Binocular-Flame-Localization-Dataset)**
+
+This release contains **190 lossless PNG images**: 75 flame-localization pairs (150 images) across 15 distance groups, plus 20 calibration pairs (40 images). The 150 localization images have **150 Pascal VOC XML annotation files** under `labelimg/<distance_group>/`; the calibration images have no detection XML files. All images retain their original resolution of 5472 x 3648 pixels.
+
+These counts describe the published compact subset, rather than the full dataset totals above. No training/test split is defined. Distance units, the physical left/right mapping of the localization camera identifiers, calibration-board specifications and camera parameters have not been confirmed. No dataset license has been specified.
+
+Download with the Hugging Face CLI:
+
+```bash
+pip install --upgrade huggingface_hub
+hf download yang1002/Binocular-Flame-Localization-Dataset --repo-type dataset --local-dir Binocular-Flame-Localization-Dataset
+```
+
+The download preserves the distance-group directories, `calibration/left`, `calibration/right` and `labelimg`. See the [dataset card](https://huggingface.co/datasets/yang1002/Binocular-Flame-Localization-Dataset) for pairing metadata, annotation paths, sampling details and integrity checks. For the separate **2,424-image validation split** with YOLO TXT (`fire`) and original XML (`fire` and `smoke`) annotations, use the [Comprehensive Flame Dataset validation release](https://huggingface.co/datasets/yang1002/comprehensive-flame-dataset-validation) and download command in the preceding section.
+
 ## Suggested structure
 
 
